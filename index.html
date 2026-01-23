@@ -1,0 +1,77 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>时间管理器</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <div class="topbar__badge">每日清空</div>
+        <div class="topbar__title">时间管理器</div>
+      </header>
+
+      <div class="view-pager">
+        <button class="btn btn--ghost" data-view-prev>上一页</button>
+        <span class="view-pager__label" data-view-label>今日事项</span>
+        <button class="btn btn--ghost" data-view-next>下一页</button>
+      </div>
+
+      <section class="boards">
+        <article class="board" data-list="today" data-view="today">
+          <header class="board__header">
+            <h2>今日事项</h2>
+            <span class="board__hint">完成后打勾</span>
+          </header>
+          <div class="composer">
+            <input
+              type="text"
+              placeholder="添加一条今日事项"
+              aria-label="添加今日事项"
+              data-input="today"
+            />
+            <input type="time" aria-label="时间" data-time="today" />
+            <button class="btn btn--primary" data-add="today">添加</button>
+          </div>
+          <ul class="items" data-items="today"></ul>
+        </article>
+
+        <article class="board" data-list="tomorrow" data-view="tomorrow">
+          <header class="board__header">
+            <h2>明日事项</h2>
+            <span class="board__hint">可提前记录</span>
+          </header>
+          <div class="composer">
+            <input
+              type="text"
+              placeholder="添加一条明日事项"
+              aria-label="添加明日事项"
+              data-input="tomorrow"
+            />
+            <input type="time" aria-label="时间" data-time="tomorrow" />
+            <button class="btn btn--primary" data-add="tomorrow">添加</button>
+          </div>
+          <ul class="items" data-items="tomorrow"></ul>
+        </article>
+      </section>
+    </main>
+
+    <template id="item-template">
+      <li class="item" draggable="true">
+        <label class="item__check">
+          <input type="checkbox" />
+          <span class="item__text"></span>
+        </label>
+        <div class="item__actions">
+          <span class="item__time" aria-hidden="true"></span>
+          <button class="btn btn--ghost" data-move></button>
+          <button class="btn btn--ghost" data-delete>删除</button>
+        </div>
+      </li>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
