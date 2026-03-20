@@ -24,27 +24,6 @@ const dragState = {
 };
 
 const HARD_CODED_SCHEDULE = {
-  0: [],
-  1: [
-    { time: "10:00", text: "应用数理统计 南教419" },
-    { time: "19:00", text: "文学与电影 北教213" },
-  ],
-  2: [
-    { time: "10:00", text: "体育" },
-    { time: "14:00", text: "Python 北教217" },
-  ],
-  3: [
-    { time: "08:15", text: "Python 敏学215" },
-    { time: "14:00", text: "中国共产党党史 北教213" },
-    { time: "16:30", text: "财务会计 北教311" },
-    { time: "19:00", text: "R语言与金融应用 敏学101" },
-  ],
-  4: [
-    { time: "10:00", text: "毛泽东思想概论 北教216" },
-    { time: "14:00", text: "形势与政策 南教215" },
-  ],
-  5: [{ time: "14:00", text: "投资学 北教308" }],
-  6: [],
 };
 
 function getDateKey(date = new Date()) {
