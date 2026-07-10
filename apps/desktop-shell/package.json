@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "description": "Chromium desktop shell for Cognitive Workstation",
+  "author": "Cognitive Workstation Contributors",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "electron .",
-    "pack": "electron-builder --dir --win",
-    "dist": "electron-builder --win nsis"
+    "pack": "node scripts/run-builder.mjs --dir --win",
+    "dist": "node scripts/run-builder.mjs --win nsis"
   },
   "dependencies": {
     "@cw/workbench-core": "workspace:*"

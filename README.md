@@ -9,7 +9,7 @@
 - 已新增 `packages/contracts` 和 `packages/theme`，提供共享类型与工作站主题 token。
 - 已新增 Homepage 根路径工作站主页、`/workstation` 兼容入口和 `/api/workstation/*` proxy。
 - 已新增 Homepage `/settings/workstation` 设置页和 `workbench-core` 设置 API，支持模式、组件、任务项目、计时策略、活动统计、音乐、主题、导入导出与隐私操作。
-- 已新增阶段四最小封装骨架：Docker Compose、`workbench-core` Dockerfile、monorepo-aware Homepage Dockerfile、`apps/desktop-shell` Electron 壳。
+- 已完成 Chromium 桌面封装：`apps/desktop-shell` 使用 Electron 内置启动 `workbench-core` 与 Homepage standalone，提供安装包、托盘、全局快捷键、本地数据目录和启动健康检查。
 - Mineradio 源码当前不在仓库中，音乐模块第一版为本地 mock 状态，并支持未来通过 `MUSIC_SERVICE_URL` 代理。
 
 ## 目录说明
@@ -18,7 +18,7 @@
 F:\工作站\
   apps/
     homepage/                 Homepage fork + 工作站主页
-    desktop-shell/            Windows 桌面壳最小骨架
+    desktop-shell/            Windows Electron 桌面应用与安装包配置
   services/
     workbench-core/           本地核心服务：任务、计时、统计、音乐、复盘
   packages/
@@ -55,7 +55,8 @@ pnpm dev:homepage     # 只启动 Homepage
 pnpm build            # 构建 contracts、core、Homepage
 pnpm build:docker     # 构建 Docker Compose 镜像
 pnpm desktop:dev      # 启动 Electron desktop shell
-pnpm desktop:build    # 构建 desktop shell TypeScript
+pnpm desktop:build    # 构建 contracts、core、Homepage 与 desktop shell
+pnpm desktop:pack     # 生成免安装 win-unpacked 目录
 pnpm desktop:dist     # 生成 Windows 安装包
 pnpm test             # 运行 core 和 Homepage 测试
 pnpm lint             # 运行 Homepage lint
@@ -85,8 +86,12 @@ pnpm --filter @cw/desktop-shell build
 | `TOKEI_REPO` | `F:\工作站\Task-Manager-main` | Task-Manager 活动统计来源；若该目录没有 `usage.30s.py`，会自动回退到 `F:\tokei` 的 collector |
 | `TOKEI_PYTHON` | 自动尝试 | Tokei Python 解释器 |
 | `GITHUB_USERNAME` | `proffitteoy` | GitHub 贡献统计用户名 |
-| `HOMEPAGE_URL` | `http://localhost:3000` | Desktop shell 打开的 Homepage 地址 |
+| `HOMEPAGE_URL` | `http://127.0.0.1:3000` | Desktop shell 的 Homepage 地址 |
+| `HOMEPAGE_PORT` | `3000` | Desktop shell 内置 Homepage 的首选端口；占用时自动选择空闲端口 |
+| `HOMEPAGE_EXTERNAL` | 空 | 设为 `1` 时 Desktop shell 不启动内置 Homepage |
+| `WORKBENCH_CORE_PORT` | `3900` | Desktop shell 内置 core 的首选端口；占用时自动选择空闲端口 |
 | `WORKBENCH_CORE_EXTERNAL` | 空 | 设为 `1` 时 Desktop shell 不启动内置 core |
+| `COGNITIVE_WORKSTATION_USER_DATA_DIR` | Electron `userData` | 可选桌面数据目录覆盖，主要用于测试与便携调试 |
 
 ## MVP 功能
 
@@ -97,20 +102,19 @@ pnpm --filter @cw/desktop-shell build
 - 音乐：mock 当前播放、播放/暂停、下一首、mood；预留远端音乐服务代理。
 - 每日复盘：聚合任务、session、ActivityWatch、Tokei/GitHub、音乐和调整日志。
 - 设置页：通过 UI 管理工作站模式、组件显示、项目偏好、计时策略、ActivityWatch/Tokei/GitHub/音乐/主题和隐私数据。
-- 封装：提供 Docker Compose 与 Electron shell 骨架，便于后续 self-hosted 和 Windows 安装包验证。
+- 封装：提供 Docker Compose，以及携带 Homepage、core 与 SQLite 原生依赖的 Electron/Chromium Windows 安装包。
 
 ## 验证说明
 
-本次实现需要联网安装 npm 依赖。若 `pnpm install` 因网络或审批失败无法运行，请先完成依赖安装，再执行：
+Windows 桌面版从仓库根目录构建；打包前先退出正在运行的 `pnpm dev`，避免 Next 构建目录和 SQLite 原生模块被占用：
 
 ```bash
-pnpm --filter @cw/workbench-core build
-pnpm --filter @cw/workbench-core test
-pnpm --filter homepage lint
-pnpm --filter homepage test
-pnpm --filter homepage build
-pnpm --filter @cw/desktop-shell build
+pnpm install
+pnpm desktop:pack
+pnpm desktop:dist
 ```
+
+产物位于 `apps/desktop-shell/release/`。当前安装器未配置发行证书，Windows SmartScreen 可能提示“未知发布者”。应用默认不会添加开机自启动；ActivityWatch 作为可选外部数据源，也不会由桌面壳自动启动。
 
 Docker smoke：
 

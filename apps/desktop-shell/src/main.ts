@@ -27,6 +27,9 @@ let isQuitting = false;
 
 app.setName("Cognitive Workstation");
 app.setAppUserModelId("dev.cognitive-workstation.desktop");
+if (process.env.COGNITIVE_WORKSTATION_USER_DATA_DIR) {
+  app.setPath("userData", resolve(process.env.COGNITIVE_WORKSTATION_USER_DATA_DIR));
+}
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
@@ -38,6 +41,7 @@ if (!hasSingleInstanceLock) {
 
 async function bootstrap(): Promise<void> {
   const userData = app.getPath("userData");
+  const smokeTest = process.env.COGNITIVE_WORKSTATION_SMOKE_TEST === "1";
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
 
   coreRuntime = await startCoreProcess(userData);
@@ -47,6 +51,7 @@ async function bootstrap(): Promise<void> {
   mainWindow = createMainWindow({
     appIcon,
     homepageUrl: homepageRuntime.url,
+    showWhenReady: !smokeTest,
     shouldQuit: () => isQuitting
   });
   createTray({
@@ -81,6 +86,10 @@ async function bootstrap(): Promise<void> {
       userData
     };
   });
+
+  if (smokeTest) {
+    setTimeout(quitApplication, 1_000);
+  }
 }
 
 app.on("activate", () => {
@@ -165,13 +174,14 @@ function sendNotice(message: string): void {
 
 function assertTrustedSender(event: IpcMainInvokeEvent): void {
   const allowedOrigin = homepageRuntime ? new URL(homepageRuntime.url).origin : undefined;
-  const senderOrigin = safeOrigin(event.senderFrame.url);
+  const senderOrigin = safeOrigin(event.senderFrame?.url);
   if (!allowedOrigin || senderOrigin !== allowedOrigin) {
     throw new Error("拒绝来自非工作站页面的桌面 IPC 请求");
   }
 }
 
-function safeOrigin(rawUrl: string): string | undefined {
+function safeOrigin(rawUrl: string | undefined): string | undefined {
+  if (!rawUrl) return undefined;
   try {
     return new URL(rawUrl).origin;
   } catch {
@@ -208,5 +218,12 @@ function handleBootstrapError(error: unknown): void {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (!(error instanceof Error)) return String(error);
+  const systemError = error as NodeJS.ErrnoException;
+  if (systemError.code) {
+    const operation = systemError.syscall ? `，操作：${systemError.syscall}` : "";
+    const path = systemError.path ? `，路径：${systemError.path}` : "";
+    return `系统操作失败（${systemError.code}${operation}${path}）`;
+  }
+  return error.message;
 }

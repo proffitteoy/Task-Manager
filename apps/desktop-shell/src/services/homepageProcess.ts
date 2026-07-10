@@ -1,4 +1,5 @@
-import { cpSync, existsSync, mkdirSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { constants, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import { app } from "electron";
@@ -30,6 +31,7 @@ export async function startHomepageProcess(userData: string, coreUrl: string): P
   const entry = process.env.HOMEPAGE_ENTRY || resolveHomepageEntry();
   const configDirectory = join(userData, "config", "homepage");
   seedHomepageConfig(configDirectory);
+  const nextAuthSecret = process.env.NEXTAUTH_SECRET || getOrCreateSecret(join(userData, "config", "nextauth-secret"));
 
   homepageRuntime = await startRuntimeProcess({
     cwd: dirname(entry),
@@ -37,6 +39,8 @@ export async function startHomepageProcess(userData: string, coreUrl: string): P
     env: {
       HOMEPAGE_CONFIG_DIR: configDirectory,
       HOSTNAME: "127.0.0.1",
+      NEXTAUTH_SECRET: nextAuthSecret,
+      NEXTAUTH_URL: url,
       NODE_ENV: "production",
       PORT: String(port),
       WORKBENCH_CORE_URL: coreUrl
@@ -48,6 +52,27 @@ export async function startHomepageProcess(userData: string, coreUrl: string): P
     url
   });
   return homepageRuntime;
+}
+
+function getOrCreateSecret(path: string): string {
+  mkdirSync(dirname(path), { recursive: true });
+  try {
+    const existing = readFileSync(path, "utf8").trim();
+    if (existing) return existing;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  const generated = randomBytes(48).toString("base64url");
+  try {
+    writeFileSync(path, `${generated}\n`, { encoding: "utf8", flag: "wx" });
+    return generated;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    const existing = readFileSync(path, "utf8").trim();
+    if (!existing) throw new Error(`NEXTAUTH_SECRET 文件为空：${path}`);
+    return existing;
+  }
 }
 
 export function stopHomepageProcess(): void {
@@ -70,11 +95,25 @@ function seedHomepageConfig(target: string): void {
   if (!existsSync(source)) {
     throw new Error(`Homepage 默认配置不存在：${source}`);
   }
-  cpSync(source, target, {
-    errorOnExist: false,
-    force: false,
-    recursive: true
-  });
+  copyMissingFiles(source, target);
+}
+
+function copyMissingFiles(source: string, target: string): void {
+  mkdirSync(target, { recursive: true });
+  for (const entry of readdirSync(source, { withFileTypes: true })) {
+    const sourcePath = join(source, entry.name);
+    const targetPath = join(target, entry.name);
+    if (entry.isDirectory()) {
+      copyMissingFiles(sourcePath, targetPath);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    try {
+      copyFileSync(sourcePath, targetPath, constants.COPYFILE_EXCL);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+  }
 }
 
 function numberFromEnvironment(name: string, fallback: number): number {

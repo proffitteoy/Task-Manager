@@ -8,6 +8,7 @@ const NETEASE_HEADERS = {
 
 export interface MineradioTrack extends MusicTrack {
   cover?: string;
+  error?: string;
   url?: string;
   lyric?: string;
   source?: "netease";

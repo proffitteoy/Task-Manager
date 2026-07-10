@@ -7,6 +7,7 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url));
 export function createMainWindow(options: {
   appIcon: NativeImage;
   homepageUrl: string;
+  showWhenReady: boolean;
   shouldQuit: () => boolean;
 }): BrowserWindow {
   const allowedOrigin = new URL(options.homepageUrl).origin;
@@ -38,7 +39,9 @@ export function createMainWindow(options: {
       void openExternalUrl(url);
     }
   });
-  window.once("ready-to-show", () => window.show());
+  if (options.showWhenReady) {
+    window.once("ready-to-show", () => window.show());
+  }
   void window.loadURL(options.homepageUrl);
   window.on("close", (event) => {
     if (!options.shouldQuit() && !window.isDestroyed()) {

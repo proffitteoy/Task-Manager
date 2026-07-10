@@ -5,7 +5,9 @@ dist/
 build/
 .tmp/
 .cache/
+.codex-artifacts/
 coverage/
+apps/desktop-shell/release/
 data/*.sqlite
 data/*.sqlite-*
 services/workbench-core/data/
