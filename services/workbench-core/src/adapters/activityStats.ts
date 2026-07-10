@@ -24,7 +24,7 @@ export class ActivityStatsAdapter {
       const collector = join(requestedRepo, "usage.30s.py");
       const payload = {
         connected: false,
-        source: "Task-Manager-main / Tokei collector",
+        source: "Tokei collector",
         roots: [requestedRepo],
         requestedRoots: [requestedRepo],
         collector,
@@ -48,7 +48,7 @@ export class ActivityStatsAdapter {
       const payload = {
         connected: true,
         fetchedAt: now,
-        source: "Task-Manager-main / Tokei collector",
+        source: "Tokei collector",
         roots: [source.repo],
         requestedRoots: [requestedRepo],
         collector: source.collector,
@@ -62,7 +62,7 @@ export class ActivityStatsAdapter {
     } catch (error) {
       const payload = {
         connected: false,
-        source: "Task-Manager-main / Tokei collector",
+        source: "Tokei collector",
         roots: [source.repo],
         requestedRoots: [requestedRepo],
         collector: source.collector,
@@ -189,14 +189,6 @@ function resolveTokeiSource(requestedRepo: string): { repo: string; collector: s
   const requestedCollector = join(requestedRepo, "usage.30s.py");
   if (existsSync(requestedCollector)) {
     return { repo: requestedRepo, collector: requestedCollector };
-  }
-  if (!requestedRepo.endsWith("Task-Manager-main")) {
-    return undefined;
-  }
-  const fallbackRepo = "F:\\tokei";
-  const fallbackCollector = join(fallbackRepo, "usage.30s.py");
-  if (existsSync(fallbackCollector)) {
-    return { repo: fallbackRepo, collector: fallbackCollector };
   }
   return undefined;
 }

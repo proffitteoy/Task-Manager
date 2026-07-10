@@ -96,6 +96,18 @@ export interface TimerCurrent {
   session?: FocusSession;
   running: boolean;
   paused: boolean;
+  breakReminder?: BreakReminderState;
+}
+
+export type BreakReminderLevel = "none" | "soft" | "hard";
+
+export interface BreakReminderState {
+  level: BreakReminderLevel;
+  elapsedFocusMinutes: number;
+  suggestedBreakMinutes: number;
+  thresholdMinutes?: number;
+  canSkip: boolean;
+  message: string;
 }
 
 export type ActivitySource = "tokei" | "github" | "activitywatch" | "timer" | "music";

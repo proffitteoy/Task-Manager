@@ -26,6 +26,7 @@
     "appId": "dev.cognitive-workstation.desktop",
     "productName": "Cognitive Workstation",
     "asar": true,
+    "afterPack": "scripts/after-pack.cjs",
     "npmRebuild": true,
     "directories": {
       "buildResources": "build",
@@ -40,7 +41,7 @@
     ],
     "extraResources": [
       {
-        "from": "../homepage/.next/standalone",
+        "from": "build/homepage-runtime-v2",
         "to": "app-runtime/homepage"
       },
       {

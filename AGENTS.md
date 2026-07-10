@@ -12,7 +12,6 @@
   4. `README.md`、`docs/项目说明.md`、各子项目 README / CONTRIBUTING / DEVELOPMENT
   5. `docs/` 中的通用模板或专项提示词
   6. skills 或外部通用提示词
-- `Task-Manager-main/AGENTS.md` 和 `super-productivity-master/AGENTS.md` 对各自目录生效；进入 `super-productivity-master` 时还必须阅读其 `CLAUDE.md`。
 - `docs/README.md`、`docs/冷启动.md` 等是通用模板，不应整体套用到本项目；`docs/项目说明.md` 是本工作区的产品与架构方向。
 
 ## 2. 当前项目事实
@@ -22,10 +21,10 @@
 - 主 UI base：`apps/homepage/`，来自 gethomepage/homepage，Next.js + React + Tailwind + TypeScript，使用 `pnpm`。
 - 核心服务：`services/workbench-core/`，Fastify + SQLite + Drizzle schema，默认监听 `127.0.0.1:3900`。
 - 共享包：`packages/contracts/` 提供 TypeScript 类型，`packages/theme/` 提供工作站主题 token。
-- 现有原型：`Task-Manager-main/`，React + TypeScript + Vite + Zustand，本地优先保存计划、计时、复盘、Tokei 与 GitHub 活动统计。
-- 活动数据来源：`activitywatch-master/`，ActivityWatch Python meta repo，作为 `aw-server`、watcher 和 REST API 适配来源，不在工作站里重写。
-- 休息提醒参考：`breaktimer-app-master/`，Electron + React + TypeScript，提供周期休息、全屏提醒、托盘和 AFK 重置思路。
-- 任务模型参考：`super-productivity-master/`，Angular + Electron + Capacitor，主要参考任务、项目、时间跟踪、集成和本地优先理念。
+- 旧时间管理原型的任务、计时、复盘、Tokei 与 GitHub 活动统计已迁入 Homepage、`workbench-core` 和 contracts；不再保留旧应用副本或静态 bundle。
+- ActivityWatch 是可选外部数据源，工作站只通过 `aw-server` REST API 读取，不内置 server 或 watcher。
+- 周期休息的软/强提醒判定已落在 `services/workbench-core/src/modules/breakReminder.ts`；托盘和窗口能力由 `apps/desktop-shell` 承担。
+- 项目、任务、标签、上下文和 timeboxing 语义由 `packages/contracts` 与 core 自己维护，不依赖外部任务应用数据库。
 - `docs/项目说明.md` 提到 Mineradio，但当前根目录尚无 Mineradio 代码目录；涉及音乐模块时先按设计文档落接口与抽象，不要假设本地源码已存在。
 
 ## 3. 常用命令
@@ -55,43 +54,6 @@
 - 构建：`pnpm --filter @cw/workbench-core build`
 - 测试：`pnpm --filter @cw/workbench-core test`
 
-### `Task-Manager-main/`
-
-- 安装依赖：`npm install`
-- 本地开发：`npm run dev`
-- 构建验证：`npm run build`
-- 预览：`npm run preview`
-- 当前没有测试、lint 或格式化脚本；代码改动后优先运行 `npm run build`。
-
-### `breaktimer-app-master/`
-
-- 安装依赖：`npm i`
-- 本地开发：`npm run dev`
-- 构建：`npm run build`
-- 生产启动：`npm run start`
-- Lint：`npm run lint`
-- 类型检查：`npm run typecheck`
-- 格式检查：`npm run format-check`
-- 测试入口：README 写 `npm test`，但当前 `package.json` 未列出 `test` 脚本；运行前先确认脚本是否存在。
-- 非平凡改动后优先执行：`npm run format && npm run lint && npm run typecheck`。
-
-### `activitywatch-master/`
-
-- Python 要求：`pyproject.toml` 声明 Python `^3.9`，使用 Poetry。
-- 常见 Makefile 入口：`make install`、`make build`、`make test`、`make lint`、`make typecheck`、`make package`。
-- 该仓库依赖多个组件与子模块；运行构建或测试前先确认本地子模块与 Python 环境完整。
-
-### `super-productivity-master/`
-
-- 安装依赖：`npm install`
-- Electron 开发：`npm start`
-- Web 开发：`npm run startFrontend` 或 `ng serve`
-- 单文件检查：`npm run checkFile <filepath>`
-- Lint：`npm run lint`
-- 单元测试：`npm test` 或 `npm run test:file <filepath>`
-- E2E：`npm run e2e` 或 `npm run e2e:file <path> -- --retries=0`
-- 修改任意 `.ts` 或 `.scss` 文件后，按其 `CLAUDE.md` 要求必须运行 `npm run checkFile <filepath>`。
-
 ## 4. 目录边界与集成方向
 
 - `docs/`：保留通用模板和本项目设计说明；不要把模板内容直接当作根契约，新增项目文档要说明它是“项目事实”还是“通用参考”。
@@ -99,10 +61,8 @@
 - `services/workbench-core/`：本地核心状态与规则服务，负责任务、计时、ActivityWatch adapter、Tokei/GitHub、音乐 mock/proxy 与每日复盘。
 - `packages/contracts/`：跨模块共享类型；变更 API 或数据库语义时优先同步这里。
 - `packages/theme/`：工作站主题 token；不要在页面内复制散乱 token。
-- `Task-Manager-main/`：时间管理与活动统计原型。修改状态结构时必须处理 `localStorage` 兼容迁移，尤其是 `cognitive-cashflow-v1`。
-- `activitywatch-master/`：只作为 ActivityWatch 数据源与 API 适配对象。工作站侧通过 adapter 读取 `aw-server`，不要复制或重写 watchers。
-- `breaktimer-app-master/`：只抽象休息提醒、强提醒、托盘、AFK 重置和全屏 break 思路；不要直接把完整 UI 嵌入工作站。
-- `super-productivity-master/`：只参考任务、项目、标签、上下文、timeboxing、集成与隐私原则；不要让它成为工作站主任务数据库。
+- 上游项目只作为外部设计与协议来源，不再把完整仓库复制进根目录。能力归属和许可证说明见 `docs/上游能力整合.md`。
+- ActivityWatch 侧继续只读 `aw-server`，不要复制或重写 watcher；复杂任务、计时与复盘状态继续由 core 管理。
 - 未来如新建整合代码，优先按 `docs/项目说明.md` 的方向组织为 `apps/`、`services/`、`packages/`，但不要在没有实现需求时空建目录。
 
 ## 5. 修改原则
@@ -126,7 +86,7 @@
 - 默认不信任外部输入、浏览器缓存、`localStorage` 历史数据、Tokei collector 输出、GitHub 页面/API、ActivityWatch buckets 和本地 HTTP 服务返回值。
 - 不要提交真实 token、cookie、私钥、账户凭据或无必要的个人敏感路径。
 - 本项目是本地优先工具；涉及用户活动、窗口标题、浏览器标签、音乐账号或开发统计时，默认按敏感数据处理。
-- 许可证事实：`apps/homepage/` 与 `breaktimer-app-master/` 是 GPL-3.0，`activitywatch-master/` 是 MPL-2.0，`super-productivity-master/` 是 MIT。若直接基于 GPL 代码形成整合产品，应按 GPL-3.0 兼容方向规划。
+- 许可证事实：`apps/homepage/` 是 GPL-3.0 fork；外部参考项目及其许可证记录在 `docs/上游能力整合.md`。新增直接复制的第三方代码时必须同时保留版权与许可证文本。
 - 不要直接复用上游项目 Logo、品牌名或原创视觉表达，除非已确认授权。
 
 ## 8. 什么时候查看 skills 或专项文档

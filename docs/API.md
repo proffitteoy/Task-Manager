@@ -47,7 +47,7 @@ Homepage 内部通过 `/api/workstation/*` 转发到 core，例如：
 
 ## 计时器
 
-- `GET /api/timer/current`
+- `GET /api/timer/current`：除当前 session 状态外，返回 `breakReminder`（`none | soft | hard`、已专注分钟、建议休息分钟和提示文案）。
 - `POST /api/timer/start`
 - `POST /api/timer/pause`
 - `POST /api/timer/resume`

@@ -20,6 +20,8 @@ import type {
   WorkstationSettings
 } from "@cw/contracts";
 
+import { evaluateBreakReminder } from "./breakReminder.js";
+
 import type { SqliteDatabase } from "../db/client.js";
 
 type Row = Record<string, unknown>;
@@ -214,10 +216,12 @@ export class WorkbenchRepository {
     }
     const session = this.mapSession(row);
     const openSegment = session.segments.find((segment) => !segment.endedAt);
+    const policy = this.getTimerPolicy(session.policyId);
     return {
       session,
       running: Boolean(openSegment && openSegment.type === "focus"),
-      paused: !openSegment || openSegment.type !== "focus"
+      paused: !openSegment || openSegment.type !== "focus",
+      breakReminder: policy ? evaluateBreakReminder(session, policy) : undefined
     };
   }
 
@@ -473,7 +477,7 @@ export class WorkbenchRepository {
     const defaults = defaultSettings(String(row.updated_at ?? new Date().toISOString()));
     const saved = parseJson<Partial<WorkstationSettings>>(row.value_json, {});
     const settings = deepMerge(defaults, saved) as WorkstationSettings;
-    if (settings.activityStats.tokeiRepo === "F:\\tokei") {
+    if (settings.activityStats.tokeiRepo === "F:\\工作站\\Task-Manager-main") {
       settings.activityStats.tokeiRepo = defaults.activityStats.tokeiRepo;
     }
     if (settings.music.provider === "mock") {
@@ -792,7 +796,7 @@ function defaultSettings(updatedAt: string): WorkstationSettings {
       showEvidenceInReview: true
     },
     activityStats: {
-      tokeiRepo: "F:\\工作站\\Task-Manager-main",
+      tokeiRepo: "F:\\tokei",
       githubUsername: "proffitteoy",
       refreshIntervalMinutes: 5,
       cacheEnabled: true,

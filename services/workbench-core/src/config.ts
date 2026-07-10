@@ -27,7 +27,7 @@ export function loadConfig(overrides: Partial<WorkbenchConfig> = {}): WorkbenchC
     databasePath,
     activityWatchUrl: overrides.activityWatchUrl ?? process.env.ACTIVITYWATCH_URL ?? "http://127.0.0.1:5600",
     musicServiceUrl: overrides.musicServiceUrl ?? process.env.MUSIC_SERVICE_URL,
-    tokeiRepo: overrides.tokeiRepo ?? process.env.TOKEI_REPO ?? "F:\\工作站\\Task-Manager-main",
+    tokeiRepo: overrides.tokeiRepo ?? process.env.TOKEI_REPO ?? "F:\\tokei",
     tokeiPython: overrides.tokeiPython ?? process.env.TOKEI_PYTHON,
     githubUsername: overrides.githubUsername ?? process.env.GITHUB_USERNAME ?? "proffitteoy",
     githubTimeoutMs: overrides.githubTimeoutMs ?? Number(process.env.GITHUB_TIMEOUT_MS ?? 20_000),

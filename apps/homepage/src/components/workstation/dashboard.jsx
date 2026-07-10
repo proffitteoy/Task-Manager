@@ -334,7 +334,7 @@ function OverviewPanel({ busy, connectionEntries, elapsedMinutes, nextTask, summ
         </div>
         <div className="workstation-overview-metrics">
           <Metric label="今日专注" value={formatMinutes(summary.focusMinutes)} hint={`有效 ${formatMinutes(summary.effectiveFocusMinutes)}`} />
-          <Metric label="今日 Token" value={formatCompact(summary.tokenTotal)} hint="Task-Manager 统计" />
+          <Metric label="今日 Token" value={formatCompact(summary.tokenTotal)} hint="本地 Collector" />
           <Metric label="GitHub 今日" value={formatCompact(summary.githubContributionCount)} hint="贡献记录" />
         </div>
       </article>
@@ -410,6 +410,12 @@ function TimerPanel({ activeTask, busy, elapsedMinutes, timer, onPauseOrResume, 
         <strong>{formatMinutes(elapsedMinutes)}</strong>
         <small>{activeTask?.title ?? "可无任务启动，结束后再归档"}</small>
       </div>
+      {timer.breakReminder?.level && timer.breakReminder.level !== "none" ? (
+        <div className="workstation-inline-notice" role="status">
+          <strong>{timer.breakReminder.level === "hard" ? "该休息了" : "休息提醒"}</strong>
+          <span>{timer.breakReminder.message}</span>
+        </div>
+      ) : null}
       <div className="workstation-actions">
         {timer.session ? (
           <>
@@ -492,7 +498,7 @@ function StatsPanel({ settings, summary }) {
 
   return (
     <article className="workstation-panel workstation-panel-wide workstation-panel-tall">
-      <PanelHeader eyebrow="Task-Manager 活动统计" title="Token 与 GitHub" />
+      <PanelHeader eyebrow="本地开发活动统计" title="Token 与 GitHub" />
       <div className="workstation-diagnostics">
         <Diagnostic label="Token 源" value={firstValue(summary.tokenSource?.roots) ?? settings.activityStats?.tokeiRepo ?? "-"} />
         <Diagnostic label="Collector" value={summary.tokenSource?.collector ?? tokenStatus.collector ?? "未找到 usage.30s.py"} />
@@ -528,7 +534,7 @@ function StatsPanel({ settings, summary }) {
           </div>
         </>
       ) : (
-        <EmptyLine text="还没有读到 Task-Manager 的 Token/GitHub 活动数据。" />
+        <EmptyLine text="还没有读到 Tokei Collector 或 GitHub 活动数据。" />
       )}
 
       <ErrorList errors={summary.errors ?? []} />

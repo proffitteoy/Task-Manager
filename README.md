@@ -10,6 +10,7 @@
 - 已新增 Homepage 根路径工作站主页、`/workstation` 兼容入口和 `/api/workstation/*` proxy。
 - 已新增 Homepage `/settings/workstation` 设置页和 `workbench-core` 设置 API，支持模式、组件、任务项目、计时策略、活动统计、音乐、主题、导入导出与隐私操作。
 - 已完成 Chromium 桌面封装：`apps/desktop-shell` 使用 Electron 内置启动 `workbench-core` 与 Homepage standalone，提供安装包、托盘、全局快捷键、本地数据目录和启动健康检查。
+- 已把旧原型中仍使用的能力收敛到正式模块：任务与活动统计进入 Homepage/core，ActivityWatch 通过 adapter 读取，任务模型进入 contracts/SQLite，休息策略由 core 输出软/强提醒；根目录不再保留完整上游仓库副本。
 - Mineradio 源码当前不在仓库中，音乐模块第一版为本地 mock 状态，并支持未来通过 `MUSIC_SERVICE_URL` 代理。
 
 ## 目录说明
@@ -26,10 +27,6 @@ F:\工作站\
     theme/                    工作站主题 token 与 CSS
   deploy/                     Docker Compose 与部署说明
   docs/                       项目说明、开发指南和落地文档
-  Task-Manager-main/          旧时间管理与活动统计原型参考
-  activitywatch-master/       ActivityWatch 数据源与 adapter 参考
-  breaktimer-app-master/      休息提醒机制参考
-  super-productivity-master/  任务模型和时间跟踪参考
 ```
 
 ## 快速开始
@@ -83,7 +80,7 @@ pnpm --filter @cw/desktop-shell build
 | `WORKBENCH_CORE_URL` | `http://127.0.0.1:3900` | Homepage proxy 访问 core 的地址 |
 | `ACTIVITYWATCH_URL` | `http://127.0.0.1:5600` | ActivityWatch aw-server 地址 |
 | `MUSIC_SERVICE_URL` | 空 | 可选音乐服务地址 |
-| `TOKEI_REPO` | `F:\工作站\Task-Manager-main` | Task-Manager 活动统计来源；若该目录没有 `usage.30s.py`，会自动回退到 `F:\tokei` 的 collector |
+| `TOKEI_REPO` | `F:\tokei` | 包含 `usage.30s.py` 的本地 Tokei collector 目录 |
 | `TOKEI_PYTHON` | 自动尝试 | Tokei Python 解释器 |
 | `GITHUB_USERNAME` | `proffitteoy` | GitHub 贡献统计用户名 |
 | `HOMEPAGE_URL` | `http://127.0.0.1:3000` | Desktop shell 的 Homepage 地址 |
@@ -96,7 +93,7 @@ pnpm --filter @cw/desktop-shell build
 ## MVP 功能
 
 - 任务：创建任务、完成任务、从任务启动专注。
-- 弹性计时：无任务启动、暂停、继续、结束、手动拆分、手动调整。
+- 弹性计时：无任务启动、暂停、继续、结束、手动拆分、手动调整，并按 timer policy 输出软/强休息提醒。
 - 活动统计：迁入 Tokei/GitHub collector 逻辑，失败时非阻塞返回错误。
 - ActivityWatch：只读 aw-server；未连接时不影响任务和计时。
 - 音乐：mock 当前播放、播放/暂停、下一首、mood；预留远端音乐服务代理。
@@ -130,6 +127,6 @@ docker compose -f deploy/docker-compose.yml up --build
 
 ## 许可证与隐私
 
-- 直接整合 Homepage 与 BreakTimer 等 GPL 代码时，整体按 GPL-3.0 兼容方向规划。
+- Homepage fork 按 GPL-3.0 兼容方向维护；其他上游能力的来源和整合边界见 [上游能力整合](./docs/上游能力整合.md)。
 - ActivityWatch、窗口标题、浏览器标签、token/GitHub 统计、音乐账号数据都按敏感本地数据处理。
 - 不提交真实 token、cookie、私钥或无必要的个人敏感路径。
