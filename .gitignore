@@ -17,3 +17,4 @@ services/workbench-core/data/
 .env.*
 !.env.example
 .env.local
+ANGENTS.md
