@@ -1,0 +1,88 @@
+{
+  "name": "@cw/desktop-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chromium desktop shell for Cognitive Workstation",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "electron .",
+    "pack": "electron-builder --dir --win",
+    "dist": "electron-builder --win nsis"
+  },
+  "dependencies": {
+    "@cw/workbench-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.7.3"
+  },
+  "build": {
+    "appId": "dev.cognitive-workstation.desktop",
+    "productName": "Cognitive Workstation",
+    "asar": true,
+    "npmRebuild": true,
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../homepage/.next/standalone",
+        "to": "app-runtime/homepage"
+      },
+      {
+        "from": "../homepage/.next/static",
+        "to": "app-runtime/homepage/apps/homepage/.next/static"
+      },
+      {
+        "from": "../homepage/public",
+        "to": "app-runtime/homepage/apps/homepage/public"
+      },
+      {
+        "from": "../homepage/config",
+        "to": "app-defaults/homepage-config",
+        "filter": [
+          "**/*",
+          "!logs/**"
+        ]
+      },
+      {
+        "from": "build/icon.png",
+        "to": "app-assets/icon.png"
+      }
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "artifactName": "CognitiveWorkstation-${version}-${arch}.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Cognitive Workstation"
+    }
+  }
+}

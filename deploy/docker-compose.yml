@@ -1,0 +1,34 @@
+services:
+  workbench-core:
+    build:
+      context: ..
+      dockerfile: services/workbench-core/Dockerfile
+    image: cognitive-homepage/workbench-core:local
+    container_name: workbench-core
+    restart: unless-stopped
+    ports:
+      - "3900:3900"
+    volumes:
+      - ./data:/app/data
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3900
+      DATABASE_URL: file:/app/data/workbench.sqlite
+      ACTIVITYWATCH_URL: http://host.docker.internal:5600
+      GITHUB_USERNAME: proffitteoy
+      TOKEI_REPO: /app/tokei
+
+  cognitive-homepage:
+    build:
+      context: ..
+      dockerfile: apps/homepage/Dockerfile
+    image: cognitive-homepage/homepage:local
+    container_name: cognitive-homepage
+    restart: unless-stopped
+    depends_on:
+      - workbench-core
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      WORKBENCH_CORE_URL: http://workbench-core:3900

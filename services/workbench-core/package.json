@@ -1,0 +1,29 @@
+{
+  "name": "@cw/workbench-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cw/contracts": "workspace:*",
+    "@fastify/cors": "^11.0.0",
+    "better-sqlite3": "^12.2.0",
+    "drizzle-orm": "^0.44.0",
+    "fastify": "^5.5.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.0"
+  }
+}

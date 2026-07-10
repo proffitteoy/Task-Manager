@@ -1,0 +1,10 @@
+{
+  "name": "@cw/theme",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./workstation.css": "./src/workstation.css",
+    ".": "./src/tokens.ts"
+  }
+}

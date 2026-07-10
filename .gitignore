@@ -1,0 +1,17 @@
+node_modules/
+.pnpm-store/
+.next/
+dist/
+build/
+.tmp/
+.cache/
+coverage/
+data/*.sqlite
+data/*.sqlite-*
+services/workbench-core/data/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+.env.local
