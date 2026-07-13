@@ -45,7 +45,7 @@ export async function startHomepageProcess(userData: string, coreUrl: string): P
       PORT: String(port),
       WORKBENCH_CORE_URL: coreUrl
     },
-    healthUrl: url,
+    healthUrl: `${url}/api/healthcheck`,
     logFile: join(userData, "logs", "homepage.log"),
     name: "Homepage",
     timeoutMs: 60_000,

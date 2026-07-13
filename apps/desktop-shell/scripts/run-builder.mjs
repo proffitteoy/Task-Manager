@@ -8,6 +8,7 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
+  unlinkSync,
   writeFileSync
 } from "node:fs";
 import { createRequire } from "node:module";
@@ -32,9 +33,11 @@ const nodeNativeBackup = join(backupDirectory, "node-better_sqlite3.node");
 const electronNativeBackup = join(backupDirectory, "electron-better_sqlite3.node");
 const homepageStandalone = resolve(appDirectory, "../homepage/.next/standalone");
 const homepageRuntime = join(appDirectory, "build", "homepage-runtime-v2");
+const activityWatchRuntime = join(appDirectory, "build", "activitywatch-runtime");
 const builderCache = join(appDirectory, "build", ".electron-builder-cache");
 
 prepareHomepageRuntime(homepageStandalone, homepageRuntime);
+prepareActivityWatchRuntime(activityWatchRuntime);
 prepareBuilderCache(builderCache);
 
 let nativeBackedUp = false;
@@ -58,29 +61,45 @@ try {
   }
   copyFileSync(sqliteNative, electronNativeBackup);
 
-  exitCode = await run(process.execPath, [
+  const builderArguments = [
     builderCli,
     `--config.electronDist=${electronDist}`,
-    "--config.npmRebuild=false",
-    ...process.argv.slice(2)
-  ]);
+    "--config.npmRebuild=false"
+  ];
+  const requestedArguments = process.argv.slice(2);
+  const buildsNsis = requestedArguments.includes("nsis");
+
+  exitCode = buildsNsis
+    ? await run(process.execPath, [...builderArguments, "--dir", "--win"])
+    : await run(process.execPath, [...builderArguments, ...requestedArguments]);
   if (exitCode === 0) {
+    removePackagedElectronDefaultApp();
     preservePackagedElectronNatives(electronNativeBackup);
     verifyPackagedDesktopShell();
     verifyPackagedHomepageRuntime();
+  }
+  if (exitCode === 0 && buildsNsis) {
+    const unpackedApplication = join(appDirectory, "release", "win-unpacked");
+    exitCode = await run(process.execPath, [
+      ...builderArguments,
+      "--prepackaged",
+      unpackedApplication,
+      "--win",
+      "nsis"
+    ]);
   }
 } finally {
   if (nativeBackedUp) {
     try {
       rmSync(sqliteNative, { force: true });
       copyFileSync(nodeNativeBackup, sqliteNative);
-      rmSync(backupDirectory, { force: true, recursive: true });
       console.log("Restored the Node.js better-sqlite3 native module after Electron packaging.");
     } catch (error) {
       console.error("Unable to restore the Node.js better-sqlite3 native module:", error);
       exitCode = 1;
     }
   }
+  rmSync(backupDirectory, { force: true, recursive: true });
 }
 
 process.exitCode = exitCode;
@@ -142,11 +161,61 @@ function prepareHomepageRuntime(source, destination) {
   if (!existsSync(helperPackage)) {
     throw new Error(`Portable Homepage runtime does not contain ${helperPackage}`);
   }
+  verifyHomepageHealthcheckBypass(destination);
   const links = findSymbolicLinks(destination);
   if (links.length > 0) {
     throw new Error(`Portable Homepage runtime still contains filesystem links: ${links[0]}`);
   }
   console.log(`Prepared portable Homepage runtime with ${packageState.size} package directories.`);
+}
+
+function prepareActivityWatchRuntime(destination) {
+  const source =
+    process.env.ACTIVITYWATCH_BUNDLE_DIR ||
+    process.env.ACTIVITYWATCH_HOME ||
+    (process.env.LOCALAPPDATA
+      ? join(process.env.LOCALAPPDATA, "Programs", "ActivityWatch")
+      : undefined);
+  const modules = ["aw-server", "aw-watcher-window", "aw-watcher-afk"];
+  const isComplete = (directory) =>
+    modules.every((name) => existsSync(join(directory, name, `${name}.exe`)));
+
+  if (!source || !isComplete(source)) {
+    if (isComplete(destination)) {
+      console.log("Reusing the staged ActivityWatch runtime.");
+      return;
+    }
+    throw new Error(
+      "ActivityWatch runtime is missing. Install ActivityWatch or set ACTIVITYWATCH_BUNDLE_DIR before packaging."
+    );
+  }
+
+  rmSync(destination, { force: true, recursive: true });
+  mkdirSync(destination, { recursive: true });
+  for (const moduleName of modules) {
+    copyDirectory(join(source, moduleName), join(destination, moduleName));
+  }
+  copyFileSync(
+    join(appDirectory, "resources", "ACTIVITYWATCH-NOTICE.txt"),
+    join(destination, "ACTIVITYWATCH-NOTICE.txt")
+  );
+  console.log("Prepared the bundled ActivityWatch server and watchers.");
+}
+
+function copyDirectory(source, destination) {
+  mkdirSync(destination, { recursive: true });
+  for (const entry of readdirSync(source, { withFileTypes: true })) {
+    const sourcePath = join(source, entry.name);
+    const destinationPath = join(destination, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectory(sourcePath, destinationPath);
+    } else if (entry.isFile()) {
+      copyFileSync(sourcePath, destinationPath);
+    } else if (entry.isSymbolicLink()) {
+      const resolved = realpathSync(sourcePath);
+      copyDirectory(resolved, destinationPath);
+    }
+  }
 }
 
 function canReuseHomepageRuntime(source, destination) {
@@ -164,10 +233,31 @@ function canReuseHomepageRuntime(source, destination) {
   if (!existsSync(sourceBuildId) || !existsSync(destinationBuildId) || !existsSync(helperPackage)) {
     return false;
   }
+  if (!hasHomepageHealthcheckBypass(destination)) return false;
   if (readFileSync(sourceBuildId, "utf8") !== readFileSync(destinationBuildId, "utf8")) {
     return false;
   }
   return findSymbolicLinks(destination).length === 0;
+}
+
+function verifyHomepageHealthcheckBypass(runtime) {
+  if (!hasHomepageHealthcheckBypass(runtime)) {
+    throw new Error(
+      "Homepage standalone middleware still intercepts /api/healthcheck. Rebuild Homepage before packaging."
+    );
+  }
+}
+
+function hasHomepageHealthcheckBypass(runtime) {
+  const manifest = join(
+    runtime,
+    "apps",
+    "homepage",
+    ".next",
+    "server",
+    "middleware-manifest.json"
+  );
+  return existsSync(manifest) && readFileSync(manifest, "utf8").includes("api/healthcheck");
 }
 
 function listPackages(nodeModules) {
@@ -355,6 +445,7 @@ function verifyPackagedHomepageRuntime() {
   if (!existsSync(helperPackage)) {
     throw new Error(`Packaged Homepage runtime does not contain ${helperPackage}`);
   }
+  verifyHomepageHealthcheckBypass(packagedHomepage);
   const links = findSymbolicLinks(packagedHomepage);
   if (links.length > 0) {
     throw new Error(`Packaged Homepage runtime contains a non-portable link: ${links[0]}`);
@@ -370,7 +461,29 @@ function verifyPackagedDesktopShell() {
   if (existsSync(join(resources, "default_app.asar"))) {
     throw new Error("Packaged desktop shell still contains Electron default_app.asar");
   }
+  const activityWatch = join(resources, "app-runtime", "activitywatch");
+  for (const moduleName of ["aw-server", "aw-watcher-window", "aw-watcher-afk"]) {
+    const executable = join(activityWatch, moduleName, `${moduleName}.exe`);
+    if (!existsSync(executable)) {
+      throw new Error(`Packaged desktop shell does not contain ${executable}`);
+    }
+  }
+  if (!existsSync(join(activityWatch, "ACTIVITYWATCH-NOTICE.txt"))) {
+    throw new Error("Packaged desktop shell does not contain the ActivityWatch license notice");
+  }
   console.log("Verified packaged desktop shell entrypoint.");
+}
+
+function removePackagedElectronDefaultApp() {
+  const defaultApp = join(
+    appDirectory,
+    "release",
+    "win-unpacked",
+    "resources",
+    "default_app.asar"
+  );
+  if (existsSync(defaultApp)) unlinkSync(defaultApp);
+  console.log("Removed Electron default_app.asar before installer creation.");
 }
 
 function findFiles(directory, filename) {

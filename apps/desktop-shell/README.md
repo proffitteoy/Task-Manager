@@ -12,8 +12,9 @@
 - 全局快捷键控制窗口、计时与音乐。
 - renderer 启用 `contextIsolation` 和 sandbox，禁用 Node integration；外链交给系统浏览器，桌面 IPC 校验来源。
 - 启动失败显示明确错误并指向日志目录。
+- 自动托管安装包内的 ActivityWatch server、窗口 watcher 和 AFK watcher；退出工作站时一并停止。
 
-当前未实现自动更新、代码签名、桌面歌词、全屏休息窗和开机自启动。应用与 ActivityWatch 都不会被本项目自动加入 Windows 启动项。
+当前未实现自动更新、代码签名、桌面歌词、全屏休息窗和开机自启动。应用与 ActivityWatch 都不会被加入 Windows 启动项；ActivityWatch 改由桌面壳随应用启动和退出。
 
 ## 开发与打包
 
@@ -43,6 +44,7 @@ pnpm desktop:dist
   config/nextauth-secret
   logs/workbench-core.log
   logs/homepage.log
+  logs/activitywatch.log
 ```
 
 Homepage 示例配置只补充缺失文件，不覆盖用户已经修改的同名文件。卸载器默认保留该目录。
@@ -58,7 +60,7 @@ HOMEPAGE_EXTERNAL=1
 HOMEPAGE_URL=http://127.0.0.1:3000
 ```
 
-其他可用覆盖：`WORKBENCH_CORE_PORT`、`HOMEPAGE_PORT`、`DATABASE_URL`、`ACTIVITYWATCH_URL`、`MUSIC_SERVICE_URL`、`TOKEI_REPO`、`NEXTAUTH_SECRET` 和 `COGNITIVE_WORKSTATION_USER_DATA_DIR`。
+其他可用覆盖：`WORKBENCH_CORE_PORT`、`HOMEPAGE_PORT`、`DATABASE_URL`、`ACTIVITYWATCH_URL`、`ACTIVITYWATCH_MANAGED`、`ACTIVITYWATCH_HOME`、`MUSIC_SERVICE_URL`、`TOKEI_REPO`、`NEXTAUTH_SECRET` 和 `COGNITIVE_WORKSTATION_USER_DATA_DIR`。打包时可用 `ACTIVITYWATCH_BUNDLE_DIR` 指定官方 ActivityWatch 安装目录。
 
 ## 快捷键
 

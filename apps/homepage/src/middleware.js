@@ -47,6 +47,6 @@ export const config = {
   // Protect all app and API routes; allow Next.js internals, public assets, auth pages, and NextAuth endpoints.
   matcher: [
     "/",
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.json|sitemap.xml|icons/|api/auth|auth/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.json|sitemap.xml|icons/|api/auth|api/healthcheck|auth/).*)",
   ],
 };

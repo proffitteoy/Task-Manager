@@ -312,7 +312,7 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
   }
 
   return (
-    <div className={embedded ? "flex flex-col gap-5" : "relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 pb-10 pt-24 sm:px-6 md:pt-28 lg:px-10"}>
+    <div className={embedded ? "workstation-music-shell flex w-full min-w-0 flex-col gap-5" : "workstation-music-shell relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 pb-10 pt-24 sm:px-6 md:pt-28 lg:px-10"}>
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="mb-2 text-sm font-bold text-indigo-600">音乐</p>
@@ -338,8 +338,8 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
         </div>
       ) : null}
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <article className="relative isolate min-h-[640px] overflow-hidden rounded-3xl border border-white/50 bg-white/55 shadow-xl backdrop-blur-xl">
+      <section className="workstation-music-layout grid gap-5">
+        <article className="workstation-music-main relative isolate min-h-[640px] overflow-hidden rounded-3xl border border-white/50 bg-white/55 shadow-xl backdrop-blur-xl">
           <div className="absolute inset-0 bg-cover bg-center opacity-20 saturate-125" style={{ backgroundImage: `url(${getCover(currentSong)})` }} />
           <div className="absolute inset-0 bg-gradient-to-br from-white/80 via-white/55 to-indigo-100/40" />
           <MineradioParticleField
@@ -484,7 +484,7 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
           </div>
         </article>
 
-        <aside className="flex min-h-[560px] flex-col rounded-3xl border border-white/50 bg-white/60 shadow-xl backdrop-blur-xl">
+        <aside className="workstation-music-info flex min-h-[560px] flex-col rounded-3xl border border-white/50 bg-white/60 shadow-xl backdrop-blur-xl">
           <div className="flex items-center justify-between border-b border-white/50 p-4">
             <h2 className="text-xl font-black text-slate-900">播放信息</h2>
             <div className="flex rounded-full border border-white/60 bg-white/65 p-1">
@@ -592,6 +592,18 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
       ) : null}
 
       <style jsx global>{`
+        .workstation-music-tab,
+        .workstation-music-shell,
+        .workstation-music-layout,
+        .workstation-music-main,
+        .workstation-music-info {
+          min-width: 0;
+          width: 100%;
+        }
+        .workstation-music-layout {
+          grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+          align-items: stretch;
+        }
         .workstation-music-scrollbar::-webkit-scrollbar {
           width: 8px;
         }
@@ -619,6 +631,14 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
           100% {
             transform: scaleY(1);
             opacity: 1;
+          }
+        }
+        @media (max-width: 960px) {
+          .workstation-music-layout {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .workstation-music-info {
+            min-height: 520px;
           }
         }
         @media (prefers-reduced-motion: reduce) {

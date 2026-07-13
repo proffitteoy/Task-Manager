@@ -215,7 +215,7 @@ export default function WorkstationDashboard() {
       </section>
     ),
     music: (
-      <section className="workstation-tab-grid">
+      <section className="workstation-music-tab">
         <WorkstationMusicPlayer embedded showSettingsLink={false} />
       </section>
     ),

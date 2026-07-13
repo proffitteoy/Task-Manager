@@ -79,6 +79,7 @@ pnpm --filter @cw/desktop-shell build
 | `DATABASE_URL` | `file:./data/workbench.sqlite` | SQLite 数据库路径 |
 | `WORKBENCH_CORE_URL` | `http://127.0.0.1:3900` | Homepage proxy 访问 core 的地址 |
 | `ACTIVITYWATCH_URL` | `http://127.0.0.1:5600` | ActivityWatch aw-server 地址 |
+| `ACTIVITYWATCH_MANAGED` | `1` | 桌面版自动托管内置 aw-server、窗口 watcher 和 AFK watcher；设为 `0` 时只连接外部服务 |
 | `MUSIC_SERVICE_URL` | 空 | 可选音乐服务地址 |
 | `TOKEI_REPO` | `F:\tokei` | 包含 `usage.30s.py` 的本地 Tokei collector 目录 |
 | `TOKEI_PYTHON` | 自动尝试 | Tokei Python 解释器 |
@@ -111,7 +112,7 @@ pnpm desktop:pack
 pnpm desktop:dist
 ```
 
-产物位于 `apps/desktop-shell/release/`。当前安装器未配置发行证书，Windows SmartScreen 可能提示“未知发布者”。应用默认不会添加开机自启动；ActivityWatch 作为可选外部数据源，也不会由桌面壳自动启动。
+产物位于 `apps/desktop-shell/release/`。当前安装器未配置发行证书，Windows SmartScreen 可能提示“未知发布者”。应用默认不会添加开机自启动；桌面壳会随工作站自动启动安装包内的 ActivityWatch server、窗口 watcher 和 AFK watcher，并在工作站退出时停止它们，无需单独启动 ActivityWatch。
 
 Docker smoke：
 

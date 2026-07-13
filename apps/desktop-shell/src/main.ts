@@ -14,6 +14,10 @@ import {
 } from "electron";
 
 import { registerGlobalShortcuts } from "./shortcuts/globalShortcuts.js";
+import {
+  startActivityWatchProcess,
+  stopActivityWatchProcess
+} from "./services/activityWatchProcess.js";
 import { startCoreProcess, stopCoreProcess } from "./services/coreProcess.js";
 import { startHomepageProcess, stopHomepageProcess } from "./services/homepageProcess.js";
 import type { RuntimeService } from "./services/runtimeProcess.js";
@@ -21,6 +25,7 @@ import { createTray } from "./tray/tray.js";
 import { createMainWindow } from "./windows/mainWindow.js";
 
 let mainWindow: BrowserWindow | undefined;
+let activityWatchRuntime: RuntimeService | undefined;
 let coreRuntime: RuntimeService | undefined;
 let homepageRuntime: RuntimeService | undefined;
 let isQuitting = false;
@@ -44,6 +49,7 @@ async function bootstrap(): Promise<void> {
   const smokeTest = process.env.COGNITIVE_WORKSTATION_SMOKE_TEST === "1";
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
 
+  activityWatchRuntime = await startActivityWatchProcess(userData);
   coreRuntime = await startCoreProcess(userData);
   homepageRuntime = await startHomepageProcess(userData, coreRuntime.url);
   const appIcon = loadAppIcon();
@@ -83,6 +89,7 @@ async function bootstrap(): Promise<void> {
     return {
       core: runtimeStatus(coreRuntime),
       homepage: runtimeStatus(homepageRuntime),
+      activityWatch: runtimeStatus(activityWatchRuntime),
       userData
     };
   });
@@ -101,6 +108,7 @@ app.on("before-quit", () => {
   globalShortcut.unregisterAll();
   stopHomepageProcess();
   stopCoreProcess();
+  stopActivityWatchProcess();
 });
 
 function quitApplication(): void {
@@ -209,6 +217,7 @@ function loadAppIcon(): NativeImage {
 function handleBootstrapError(error: unknown): void {
   stopHomepageProcess();
   stopCoreProcess();
+  stopActivityWatchProcess();
   const userData = app.getPath("userData");
   dialog.showErrorBox(
     "Cognitive Workstation 启动失败",
