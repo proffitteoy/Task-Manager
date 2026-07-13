@@ -34,10 +34,14 @@ const electronNativeBackup = join(backupDirectory, "electron-better_sqlite3.node
 const homepageStandalone = resolve(appDirectory, "../homepage/.next/standalone");
 const homepageRuntime = join(appDirectory, "build", "homepage-runtime-v2");
 const activityWatchRuntime = join(appDirectory, "build", "activitywatch-runtime");
+const tokeiRuntime = join(appDirectory, "build", "tokei-runtime");
+const pythonRuntime = join(appDirectory, "build", "python-runtime");
 const builderCache = join(appDirectory, "build", ".electron-builder-cache");
 
 prepareHomepageRuntime(homepageStandalone, homepageRuntime);
 prepareActivityWatchRuntime(activityWatchRuntime);
+prepareTokeiRuntime(tokeiRuntime);
+preparePythonRuntime(pythonRuntime);
 prepareBuilderCache(builderCache);
 
 let nativeBackedUp = false;
@@ -170,12 +174,7 @@ function prepareHomepageRuntime(source, destination) {
 }
 
 function prepareActivityWatchRuntime(destination) {
-  const source =
-    process.env.ACTIVITYWATCH_BUNDLE_DIR ||
-    process.env.ACTIVITYWATCH_HOME ||
-    (process.env.LOCALAPPDATA
-      ? join(process.env.LOCALAPPDATA, "Programs", "ActivityWatch")
-      : undefined);
+  const source = process.env.ACTIVITYWATCH_BUNDLE_DIR || process.env.ACTIVITYWATCH_HOME;
   const modules = ["aw-server", "aw-watcher-window", "aw-watcher-afk"];
   const isComplete = (directory) =>
     modules.every((name) => existsSync(join(directory, name, `${name}.exe`)));
@@ -214,6 +213,86 @@ function copyDirectory(source, destination) {
     } else if (entry.isSymbolicLink()) {
       const resolved = realpathSync(sourcePath);
       copyDirectory(resolved, destinationPath);
+    }
+  }
+}
+
+function prepareTokeiRuntime(destination) {
+  const source = process.env.TOKEI_BUNDLE_DIR;
+  const requiredFiles = ["usage.30s.py", "pricing.json", "pricing_overrides.json"];
+  const isComplete = (directory) =>
+    directory && requiredFiles.every((filename) => existsSync(join(directory, filename)));
+  if (!isComplete(source)) {
+    if (isComplete(destination)) {
+      console.log("Reusing the staged Tokei token collector.");
+      return;
+    }
+    throw new Error(
+      "Tokei collector source is missing. Set TOKEI_BUNDLE_DIR before packaging."
+    );
+  }
+  for (const filename of requiredFiles) {
+    if (!existsSync(join(source, filename))) {
+      throw new Error(`Tokei runtime is missing ${join(source, filename)}`);
+    }
+  }
+
+  rmSync(destination, { force: true, recursive: true });
+  mkdirSync(destination, { recursive: true });
+  for (const filename of requiredFiles) {
+    copyFileSync(join(source, filename), join(destination, filename));
+  }
+  copyFileSync(
+    join(appDirectory, "resources", "TOKEI-NOTICE.txt"),
+    join(destination, "TOKEI-NOTICE.txt")
+  );
+  console.log("Prepared the bundled Tokei token collector.");
+}
+
+function preparePythonRuntime(destination) {
+  const source =
+    process.env.TOKEI_PYTHON_HOME ||
+    (process.env.TOKEI_PYTHON ? dirname(process.env.TOKEI_PYTHON) : undefined);
+  if (!source || !existsSync(join(source, "python.exe"))) {
+    if (existsSync(join(destination, "python.exe"))) {
+      console.log("Reusing the staged Python runtime for Tokei.");
+      return;
+    }
+    throw new Error(
+      "Python 3.12 runtime is missing. Set TOKEI_PYTHON_HOME before packaging."
+    );
+  }
+
+  rmSync(destination, { force: true, recursive: true });
+  mkdirSync(destination, { recursive: true });
+  for (const filename of [
+    "python.exe",
+    "python3.dll",
+    "python312.dll",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+    "LICENSE.txt"
+  ]) {
+    const path = join(source, filename);
+    if (!existsSync(path)) throw new Error(`Python runtime is missing ${path}`);
+    copyFileSync(path, join(destination, filename));
+  }
+  copyDirectory(join(source, "DLLs"), join(destination, "DLLs"));
+  copyPythonStandardLibrary(join(source, "Lib"), join(destination, "Lib"));
+  console.log("Prepared the bundled Python standard runtime for Tokei.");
+}
+
+function copyPythonStandardLibrary(source, destination, relativePath = "") {
+  const excluded = new Set(["site-packages", "__pycache__", "test", "tests", "tkinter", "idlelib", "ensurepip", "venv"]);
+  mkdirSync(destination, { recursive: true });
+  for (const entry of readdirSync(source, { withFileTypes: true })) {
+    if (excluded.has(entry.name)) continue;
+    const sourcePath = join(source, entry.name);
+    const destinationPath = join(destination, entry.name);
+    if (entry.isDirectory()) {
+      copyPythonStandardLibrary(sourcePath, destinationPath, join(relativePath, entry.name));
+    } else if (entry.isFile()) {
+      copyFileSync(sourcePath, destinationPath);
     }
   }
 }
@@ -470,6 +549,16 @@ function verifyPackagedDesktopShell() {
   }
   if (!existsSync(join(activityWatch, "ACTIVITYWATCH-NOTICE.txt"))) {
     throw new Error("Packaged desktop shell does not contain the ActivityWatch license notice");
+  }
+  const tokei = join(resources, "app-runtime", "tokei");
+  for (const filename of ["usage.30s.py", "pricing.json", "pricing_overrides.json", "TOKEI-NOTICE.txt"]) {
+    if (!existsSync(join(tokei, filename))) {
+      throw new Error(`Packaged desktop shell does not contain ${join(tokei, filename)}`);
+    }
+  }
+  const python = join(resources, "app-runtime", "python");
+  if (!existsSync(join(python, "python.exe")) || !existsSync(join(python, "LICENSE.txt"))) {
+    throw new Error("Packaged desktop shell does not contain the Python runtime or its license");
   }
   console.log("Verified packaged desktop shell entrypoint.");
 }

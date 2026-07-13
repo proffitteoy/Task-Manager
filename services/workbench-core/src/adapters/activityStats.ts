@@ -14,7 +14,7 @@ export class ActivityStatsAdapter {
   async tokeiUsage(forceFresh = false, settings: { tokeiRepo?: string; tokeiPython?: string } = {}): Promise<Record<string, unknown>> {
     const now = Date.now();
     const requestedRepo = settings.tokeiRepo || this.config.tokeiRepo;
-    const source = resolveTokeiSource(requestedRepo);
+    const source = resolveTokeiSource(requestedRepo) ?? resolveTokeiSource(this.config.tokeiRepo);
     const cacheKey = `${requestedRepo}::${source?.repo ?? "missing"}`;
     if (!forceFresh && this.tokeiCache?.tokeiRepo === cacheKey && now - this.tokeiCache.at < 5 * 60_000) {
       return this.tokeiCache.payload;

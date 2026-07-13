@@ -51,6 +51,14 @@
         "to": "app-runtime/activitywatch"
       },
       {
+        "from": "build/tokei-runtime",
+        "to": "app-runtime/tokei"
+      },
+      {
+        "from": "build/python-runtime",
+        "to": "app-runtime/python"
+      },
+      {
         "from": "../homepage/.next/static",
         "to": "app-runtime/homepage/apps/homepage/.next/static"
       },

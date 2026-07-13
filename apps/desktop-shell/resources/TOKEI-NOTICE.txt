@@ -1,0 +1,12 @@
+Tokei collector notice
+
+This desktop package includes the local token collector script and pricing
+tables derived from the Tokei project.
+
+Project source: https://github.com/cclank/tokei
+Local integration source: https://github.com/proffitteoy/tokei
+License: MIT (as declared by the upstream project README)
+
+The collector reads local AI coding-tool session logs. It does not upload
+those logs. Price updates require an explicit collector command and are not
+performed automatically by Cognitive Workstation.

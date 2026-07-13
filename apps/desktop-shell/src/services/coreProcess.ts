@@ -29,6 +29,8 @@ export async function startCoreProcess(userData: string): Promise<RuntimeService
   const url = `http://127.0.0.1:${port}`;
   const databaseDirectory = join(userData, "data");
   const entry = process.env.WORKBENCH_CORE_ENTRY || resolveCoreEntry();
+  const tokeiRepo = process.env.TOKEI_REPO || resolveTokeiRuntime();
+  const tokeiPython = process.env.TOKEI_PYTHON || resolveTokeiPython();
 
   coreRuntime = await startRuntimeProcess({
     cwd: userData,
@@ -38,7 +40,8 @@ export async function startCoreProcess(userData: string): Promise<RuntimeService
       DATABASE_URL: process.env.DATABASE_URL || `file:${join(databaseDirectory, "workbench.sqlite")}`,
       HOST: "127.0.0.1",
       PORT: String(port),
-      TOKEI_REPO: process.env.TOKEI_REPO || userData
+      TOKEI_PYTHON: tokeiPython,
+      TOKEI_REPO: tokeiRepo
     },
     healthUrl: `${url}/health`,
     logFile: join(userData, "logs", "workbench-core.log"),
@@ -46,6 +49,18 @@ export async function startCoreProcess(userData: string): Promise<RuntimeService
     url
   });
   return coreRuntime;
+}
+
+function resolveTokeiRuntime(): string {
+  if (app.isPackaged) return join(process.resourcesPath, "app-runtime", "tokei");
+  return resolve(app.getAppPath(), "build", "tokei-runtime");
+}
+
+function resolveTokeiPython(): string | undefined {
+  if (app.isPackaged) {
+    return join(process.resourcesPath, "app-runtime", "python", "python.exe");
+  }
+  return undefined;
 }
 
 export function stopCoreProcess(): void {

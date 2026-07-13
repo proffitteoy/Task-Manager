@@ -81,8 +81,8 @@ pnpm --filter @cw/desktop-shell build
 | `ACTIVITYWATCH_URL` | `http://127.0.0.1:5600` | ActivityWatch aw-server 地址 |
 | `ACTIVITYWATCH_MANAGED` | `1` | 桌面版自动托管内置 aw-server、窗口 watcher 和 AFK watcher；设为 `0` 时只连接外部服务 |
 | `MUSIC_SERVICE_URL` | 空 | 可选音乐服务地址 |
-| `TOKEI_REPO` | `F:\tokei` | 包含 `usage.30s.py` 的本地 Tokei collector 目录 |
-| `TOKEI_PYTHON` | 自动尝试 | Tokei Python 解释器 |
+| `TOKEI_REPO` | 桌面版为自身 staged/bundled collector | 包含 `usage.30s.py` 和价格表的 Tokei collector 目录 |
+| `TOKEI_PYTHON` | 桌面版为内置 Python 3.12；其他模式自动尝试 | Tokei Python 解释器 |
 | `GITHUB_USERNAME` | `proffitteoy` | GitHub 贡献统计用户名 |
 | `HOMEPAGE_URL` | `http://127.0.0.1:3000` | Desktop shell 的 Homepage 地址 |
 | `HOMEPAGE_PORT` | `3000` | Desktop shell 内置 Homepage 的首选端口；占用时自动选择空闲端口 |
@@ -95,7 +95,7 @@ pnpm --filter @cw/desktop-shell build
 
 - 任务：创建任务、完成任务、从任务启动专注。
 - 弹性计时：无任务启动、暂停、继续、结束、手动拆分、手动调整，并按 timer policy 输出软/强休息提醒。
-- 活动统计：迁入 Tokei/GitHub collector 逻辑，失败时非阻塞返回错误。
+- 活动统计：迁入 Tokei/GitHub collector 逻辑；Windows 安装包携带 Tokei collector、价格表和最小 Python 标准运行时，无需另装 Python。
 - ActivityWatch：只读 aw-server；未连接时不影响任务和计时。
 - 音乐：mock 当前播放、播放/暂停、下一首、mood；预留远端音乐服务代理。
 - 每日复盘：聚合任务、session、ActivityWatch、Tokei/GitHub、音乐和调整日志。
