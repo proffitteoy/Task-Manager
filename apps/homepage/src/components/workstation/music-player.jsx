@@ -339,7 +339,7 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
       ) : null}
 
       <section className="workstation-music-layout grid gap-5">
-        <article className="workstation-music-main relative isolate min-h-[640px] overflow-hidden rounded-3xl border border-white/50 bg-white/55 shadow-xl backdrop-blur-xl">
+        <article className={`workstation-music-main relative isolate overflow-hidden rounded-3xl border border-white/50 bg-white/55 shadow-xl backdrop-blur-xl ${embedded ? "h-[560px] min-h-0" : "min-h-[640px]"}`}>
           <div className="absolute inset-0 bg-cover bg-center opacity-20 saturate-125" style={{ backgroundImage: `url(${getCover(currentSong)})` }} />
           <div className="absolute inset-0 bg-gradient-to-br from-white/80 via-white/55 to-indigo-100/40" />
           <MineradioParticleField
@@ -352,7 +352,7 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
             volume={isMuted ? 0 : volume || 0}
           />
 
-          <div className="relative z-10 flex h-full min-h-[640px] flex-col justify-between p-5 sm:p-7 md:p-8">
+          <div className={`relative z-10 flex h-full flex-col justify-between p-5 sm:p-7 md:p-8 ${embedded ? "min-h-0" : "min-h-[640px]"}`}>
             <div className="flex items-center justify-between gap-3">
               <p className="rounded-full border border-white/60 bg-white/75 px-4 py-2 text-sm font-bold text-slate-600 shadow-sm backdrop-blur-xl">
                 {playModeLabel}
@@ -484,7 +484,7 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
           </div>
         </article>
 
-        <aside className="workstation-music-info flex min-h-[560px] flex-col rounded-3xl border border-white/50 bg-white/60 shadow-xl backdrop-blur-xl">
+        <aside className={`workstation-music-info flex flex-col rounded-3xl border border-white/50 bg-white/60 shadow-xl backdrop-blur-xl ${embedded ? "h-[560px] min-h-0" : "min-h-[640px]"}`}>
           <div className="flex items-center justify-between border-b border-white/50 p-4">
             <h2 className="text-xl font-black text-slate-900">播放信息</h2>
             <div className="flex rounded-full border border-white/60 bg-white/65 p-1">
@@ -519,7 +519,7 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
                 <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 h-20 bg-gradient-to-b from-white/95 to-transparent" />
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-24 bg-gradient-to-t from-white/95 to-transparent" />
                 <div ref={lyricContainerRef} className="workstation-music-scrollbar workstation-lyric-mask h-full overflow-y-auto px-5">
-                  <div className="flex min-h-full flex-col gap-4 py-[34vh]">
+                  <div className={`flex min-h-full flex-col gap-4 ${embedded ? "py-48" : "py-[34vh]"}`}>
                     {parsedLyrics.length > 0 ? (
                       parsedLyrics.map((line, index) => {
                         const isActive = index === activeLyricIndex;

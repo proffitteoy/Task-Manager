@@ -185,7 +185,7 @@ describe("pages/index getStaticProps", () => {
   it("returns initial settings and api fallbacks for swr", async () => {
     getSettings.mockReturnValueOnce({ providers: { x: 1 }, language: "en", title: "Homepage" });
 
-    const { getStaticProps } = await import("pages/index.jsx");
+    const { getStaticProps } = await import("pages/homepage.jsx");
     const result = await getStaticProps();
 
     expect(result.props.initialSettings).toEqual({ language: "en", title: "Homepage" });
@@ -199,7 +199,7 @@ describe("pages/index getStaticProps", () => {
   it("normalizes legacy language codes before requesting translations", async () => {
     getSettings.mockReturnValueOnce({ providers: {}, language: "zh-CN" });
 
-    const { getStaticProps } = await import("pages/index.jsx");
+    const { getStaticProps } = await import("pages/homepage.jsx");
     await getStaticProps();
 
     expect(serverSideTranslations).toHaveBeenCalledWith("zh-Hans");
@@ -209,14 +209,14 @@ describe("pages/index getStaticProps", () => {
     getSettings.mockReturnValueOnce({ providers: {}, language: "de" });
     state.throwIn = "services";
 
-    const { getStaticProps } = await import("pages/index.jsx");
+    const { getStaticProps } = await import("pages/homepage.jsx");
     const result = await getStaticProps();
 
     expect(result.props.initialSettings).toEqual({});
     expect(result.props.fallback["/api/services"]).toEqual([]);
     expect(result.props.fallback["/api/bookmarks"]).toEqual([]);
     expect(result.props.fallback["/api/widgets"]).toEqual([]);
-    expect(serverSideTranslations).toHaveBeenCalledWith("en");
+    expect(serverSideTranslations).toHaveBeenCalledWith("zh-Hans");
     expect(logger.error).toHaveBeenCalled();
   });
 });
@@ -229,7 +229,7 @@ async function renderIndex({
   activeTab = "",
   settings = initialSettings,
 } = {}) {
-  const { default: Wrapper } = await import("pages/index.jsx");
+  const { default: Wrapper } = await import("pages/homepage.jsx");
 
   const setTheme = vi.fn();
   const setColor = vi.fn();

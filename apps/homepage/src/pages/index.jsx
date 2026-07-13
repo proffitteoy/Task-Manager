@@ -14,10 +14,10 @@ export default function IndexPage() {
   return (
     <>
       <Head>
-        <title>认知工作站</title>
+        <title>科研开发工作站</title>
         <meta
           name="description"
-          content="基于 Homepage 的本地全流程工作站，整合任务、计时、ActivityWatch、Token、GitHub、音乐与复盘。"
+          content="本地优先的科研开发全流程记录工作站，统一管理任务、分板块计时、开发统计、电脑资源、音乐与复盘。"
         />
       </Head>
       <WorkstationDashboard />

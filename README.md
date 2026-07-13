@@ -1,133 +1,147 @@
-# Cognitive Homepage / 认知工作站
+# 科研开发工作站
 
-这是基于 Homepage 的本地全流程工作站 MVP。当前仓库已整理为 pnpm monorepo：Homepage 负责“看见和编排”，`workbench-core` 负责“状态和规则”，通过本地 API 把任务、弹性计时、ActivityWatch、token/GitHub 统计、音乐状态和每日复盘串成闭环。
+![License](https://img.shields.io/badge/license-GPL--3.0--or--later-1f6f5f)
+![Node.js](https://img.shields.io/badge/Node.js-20%2B-23352d)
+![pnpm](https://img.shields.io/badge/pnpm-11-f0a020)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Web-315c76)
 
-## 当前状态
+本地优先的科研开发全流程记录工作站。它把任务规划、分板块弹性计时、开发活动统计、电脑资源监控、音乐和每日复盘放在一个可自托管界面中，帮助研究者与开发者留下连续、可追溯的工作记录。
 
-- 已迁移 Homepage 到 `apps/homepage`，原 Homepage 能力保留。
-- 已新增 `services/workbench-core`，提供 Fastify + SQLite + Drizzle schema 的本地核心服务。
-- 已新增 `packages/contracts` 和 `packages/theme`，提供共享类型与工作站主题 token。
-- 已新增 Homepage 根路径工作站主页、`/workstation` 兼容入口和 `/api/workstation/*` proxy。
-- 已新增 Homepage `/settings/workstation` 设置页和 `workbench-core` 设置 API，支持模式、组件、任务项目、计时策略、活动统计、音乐、主题、导入导出与隐私操作。
-- 已完成 Chromium 桌面封装：`apps/desktop-shell` 使用 Electron 内置启动 `workbench-core` 与 Homepage standalone，提供安装包、托盘、全局快捷键、本地数据目录和启动健康检查。
-- 已把旧原型中仍使用的能力收敛到正式模块：任务与活动统计进入 Homepage/core，ActivityWatch 通过 adapter 读取，任务模型进入 contracts/SQLite，休息策略由 core 输出软/强提醒；根目录不再保留完整上游仓库副本。
-- Mineradio 源码当前不在仓库中，音乐模块第一版为本地 mock 状态，并支持未来通过 `MUSIC_SERVICE_URL` 代理。
+![科研开发工作站预览](./docs/assets/preview-cover.svg)
 
-## 目录说明
+> `1.0.0` 是首个正式发布版本。核心任务、计时与设置数据默认写入本地 SQLite；外部数据源均可选，发行版本不预置维护者的账号、绝对路径或私人歌单。
+
+## 界面预览
+
+<table>
+  <tr>
+    <td width="50%"><img src="./docs/assets/preview-planner.svg" alt="日程与分板块计时预览" /></td>
+    <td width="50%"><img src="./docs/assets/preview-development.svg" alt="开发统计预览" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>日程与分板块计时</strong></td>
+    <td align="center"><strong>开发统计</strong></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="./docs/assets/preview-activity.svg" alt="电脑活动预览" /></td>
+    <td width="50%"><img src="./docs/assets/preview-music-review.svg" alt="音乐与复盘预览" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>电脑活动与系统资源</strong></td>
+    <td align="center"><strong>音乐与每日复盘</strong></td>
+  </tr>
+</table>
+
+这些 SVG 是可直接替换的预览位。发布截图准备完成后，保持文件名不变即可更新 README 中的整组图片。
+
+## 核心能力
+
+- 日程与任务：创建、归类、添加自定义标签、删除任务，并从任务直接开始专注。
+- 六类默认板块：数学基础、考研训练、课程生活、技术开源、科研项目、缓冲机动；默认配比为 38 / 22 / 10 / 18 / 8 / 4。
+- 弹性计时：支持任务计时、按板块计时、暂停、继续、结束、手动拆分和调整记录；默认策略为弹性 50 + 10。
+- 开发统计：展示今日 Token、今日提交、累计 Token、累计提交，以及 Token / GitHub 活动热力图。
+- 电脑活动：只读聚合 ActivityWatch 的应用、窗口、网页域名与当天时间线，同时实时采样 CPU、内存、GPU、显存与可用温度指标。
+- 音乐：统一的独立页与嵌入式播放器，歌词和播放列表在固定区域内滚动。
+- 每日复盘：聚合任务、专注记录、开发统计和音乐状态，形成可回看的日记录。
+- 可选 ActivityWatch：仍可作为专注证据来源，但不影响任务、计时和资源监控的基础功能。
+
+## 本地优先
+
+- 任务、板块、计时、设置和复盘存储在本地 SQLite。
+- ActivityWatch 当天活动和 CPU / GPU / 内存短时采样只用于本机页面展示，不写入工作站数据库。
+- GitHub 用户名、Token collector 路径、音乐服务地址与歌单默认留空。
+- ActivityWatch 通过本机 `aw-server` 只读接入；窗口标题等数据按敏感信息处理。
+- 项目不要求云账户，也不会在未配置时连接维护者的私人服务。
+
+## 架构
 
 ```text
-F:\工作站\
-  apps/
-    homepage/                 Homepage fork + 工作站主页
-    desktop-shell/            Windows Electron 桌面应用与安装包配置
-  services/
-    workbench-core/           本地核心服务：任务、计时、统计、音乐、复盘
-  packages/
-    contracts/                跨模块 TypeScript 类型
-    theme/                    工作站主题 token 与 CSS
-  deploy/                     Docker Compose 与部署说明
-  docs/                       项目说明、开发指南和落地文档
+apps/homepage          Next.js 主界面与本机资源采样 API
+apps/desktop-shell     Electron 桌面外壳、托盘与 Windows 安装包
+services/workbench-core
+                       Fastify + SQLite，管理任务、计时、统计与复盘
+packages/contracts     跨模块 TypeScript 数据契约
+packages/theme         工作站主题与组件样式
 ```
+
+Homepage 负责展示与编排，`workbench-core` 负责状态与规则。复杂业务数据不会写入 Homepage YAML。
 
 ## 快速开始
 
+Windows 用户可直接下载 [ResearchWorkstation 1.0.0 安装包](https://github.com/proffitteoy/Task-Manager/releases/download/v1.0.0/ResearchWorkstation-1.0.0-x64.exe)。
+
+要求：Node.js 20 或更高版本、pnpm 11。
+
 ```bash
 pnpm install
+pnpm dev
+```
+
+启动后访问：
+
+- 工作站：`http://localhost:3000`
+- 设置：`http://localhost:3000/settings/workstation`
+- Core 健康检查：`http://127.0.0.1:3900/health`
+
+也可以分别启动：
+
+```bash
 pnpm dev:core
 pnpm dev:homepage
 ```
 
-默认地址：
+## 配置
 
-- Homepage：`http://localhost:3000`
-- 设置：`http://localhost:3000/settings/workstation`
-- Workbench Core 健康检查：`http://127.0.0.1:3900/health`
-
-## 常用命令
-
-```bash
-pnpm dev              # 同时启动 core 和 Homepage
-pnpm dev:core         # 只启动 workbench-core
-pnpm dev:homepage     # 只启动 Homepage
-pnpm build            # 构建 contracts、core、Homepage
-pnpm build:docker     # 构建 Docker Compose 镜像
-pnpm desktop:dev      # 启动 Electron desktop shell
-pnpm desktop:build    # 构建 contracts、core、Homepage 与 desktop shell
-pnpm desktop:pack     # 生成免安装 win-unpacked 目录
-pnpm desktop:dist     # 生成 Windows 安装包
-pnpm test             # 运行 core 和 Homepage 测试
-pnpm lint             # 运行 Homepage lint
-```
-
-子项目命令：
-
-```bash
-pnpm --filter @cw/workbench-core build
-pnpm --filter @cw/workbench-core test
-pnpm --filter homepage build
-pnpm --filter homepage test
-pnpm --filter homepage lint
-pnpm --filter @cw/desktop-shell build
-```
-
-## 环境变量
+所有个人配置都应通过环境变量或设置页提供，不应提交到仓库。
 
 | 变量 | 默认值 | 用途 |
 |:---|:---|:---|
-| `PORT` | `3900` | `workbench-core` 端口 |
-| `HOST` | `127.0.0.1` | `workbench-core` 监听地址 |
-| `DATABASE_URL` | `file:./data/workbench.sqlite` | SQLite 数据库路径 |
-| `WORKBENCH_CORE_URL` | `http://127.0.0.1:3900` | Homepage proxy 访问 core 的地址 |
-| `ACTIVITYWATCH_URL` | `http://127.0.0.1:5600` | ActivityWatch aw-server 地址 |
-| `ACTIVITYWATCH_MANAGED` | `1` | 桌面版自动托管内置 aw-server、窗口 watcher 和 AFK watcher；设为 `0` 时只连接外部服务 |
-| `MUSIC_SERVICE_URL` | 空 | 可选音乐服务地址 |
-| `TOKEI_REPO` | 桌面版为自身 staged/bundled collector | 包含 `usage.30s.py` 和价格表的 Tokei collector 目录 |
-| `TOKEI_PYTHON` | 桌面版为内置 Python 3.12；其他模式自动尝试 | Tokei Python 解释器 |
-| `GITHUB_USERNAME` | `proffitteoy` | GitHub 贡献统计用户名 |
-| `HOMEPAGE_URL` | `http://127.0.0.1:3000` | Desktop shell 的 Homepage 地址 |
-| `HOMEPAGE_PORT` | `3000` | Desktop shell 内置 Homepage 的首选端口；占用时自动选择空闲端口 |
-| `HOMEPAGE_EXTERNAL` | 空 | 设为 `1` 时 Desktop shell 不启动内置 Homepage |
-| `WORKBENCH_CORE_PORT` | `3900` | Desktop shell 内置 core 的首选端口；占用时自动选择空闲端口 |
-| `WORKBENCH_CORE_EXTERNAL` | 空 | 设为 `1` 时 Desktop shell 不启动内置 core |
-| `COGNITIVE_WORKSTATION_USER_DATA_DIR` | Electron `userData` | 可选桌面数据目录覆盖，主要用于测试与便携调试 |
+| `HOST` | `127.0.0.1` | Core 监听地址 |
+| `PORT` | `3900` | Core 端口 |
+| `DATABASE_URL` | `file:./data/workbench.sqlite` | SQLite 数据库 |
+| `WORKBENCH_CORE_URL` | `http://127.0.0.1:3900` | Homepage 访问 Core 的地址 |
+| `ACTIVITYWATCH_URL` | `http://127.0.0.1:5600` | 可选 ActivityWatch 地址 |
+| `TOKEI_REPO` | 空 | Token collector 目录 |
+| `TOKEI_PYTHON` | 自动探测 | Collector Python 解释器 |
+| `GITHUB_USERNAME` | 空 | GitHub 贡献统计用户名 |
+| `MUSIC_SERVICE_URL` | 空 | 可选远程音乐服务 |
 
-## MVP 功能
-
-- 任务：创建任务、完成任务、从任务启动专注。
-- 弹性计时：无任务启动、暂停、继续、结束、手动拆分、手动调整，并按 timer policy 输出软/强休息提醒。
-- 活动统计：迁入 Tokei/GitHub collector 逻辑；Windows 安装包携带 Tokei collector、价格表和最小 Python 标准运行时，无需另装 Python。
-- ActivityWatch：只读 aw-server；未连接时不影响任务和计时。
-- 音乐：mock 当前播放、播放/暂停、下一首、mood；预留远端音乐服务代理。
-- 每日复盘：聚合任务、session、ActivityWatch、Tokei/GitHub、音乐和调整日志。
-- 设置页：通过 UI 管理工作站模式、组件显示、项目偏好、计时策略、ActivityWatch/Tokei/GitHub/音乐/主题和隐私数据。
-- 封装：提供 Docker Compose，以及携带 Homepage、core 与 SQLite 原生依赖的 Electron/Chromium Windows 安装包。
-
-## 验证说明
-
-Windows 桌面版从仓库根目录构建；打包前先退出正在运行的 `pnpm dev`，避免 Next 构建目录和 SQLite 原生模块被占用：
+## 开发与验证
 
 ```bash
-pnpm install
+pnpm build
+pnpm test
+pnpm lint
+
+pnpm --filter @cw/workbench-core test
+pnpm --filter homepage test
+pnpm --filter homepage build
+```
+
+Windows 桌面包：
+
+```bash
 pnpm desktop:pack
 pnpm desktop:dist
 ```
 
-产物位于 `apps/desktop-shell/release/`。当前安装器未配置发行证书，Windows SmartScreen 可能提示“未知发布者”。应用默认不会添加开机自启动；桌面壳会随工作站自动启动安装包内的 ActivityWatch server、窗口 watcher 和 AFK watcher，并在工作站退出时停止它们，无需单独启动 ActivityWatch。
-
-Docker smoke：
+Docker：
 
 ```bash
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
-## 后续阶段文档
+## 参与贡献
 
-- [后续阶段总览](./docs/后续阶段.md)
-- [阶段三：工作站设置页面](./docs/设置页面.md)
-- [阶段四：封装与发布](./docs/封装与发布.md)
+欢迎提交问题、设计讨论与 Pull Request。贡献前请遵守以下边界：
 
-## 许可证与隐私
+1. 不提交 token、cookie、私钥、个人绝对路径或私人活动数据。
+2. 修改 API 或数据库语义时同步 `packages/contracts`、测试和文档。
+3. 保留 Homepage 上游边界，新增工作站能力优先放入 `workstation` 命名空间。
+4. 直接引入第三方代码时保留版权、许可证与来源说明。
 
-- Homepage fork 按 GPL-3.0 兼容方向维护；其他上游能力的来源和整合边界见 [上游能力整合](./docs/上游能力整合.md)。
-- ActivityWatch、窗口标题、浏览器标签、token/GitHub 统计、音乐账号数据都按敏感本地数据处理。
-- 不提交真实 token、cookie、私钥或无必要的个人敏感路径。
+详细架构方向见 [项目说明](./docs/项目说明.md)，上游来源与许可证边界见 [上游能力整合](./docs/上游能力整合.md)。
+
+## 许可证
+
+本仓库按 [GPL-3.0-or-later](./LICENSE) 发布；Homepage fork 同样保留上游许可证。第三方组件可能适用各自许可证，详见 `docs/上游能力整合.md` 与应用内 NOTICE 文件。

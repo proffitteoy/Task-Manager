@@ -15,7 +15,7 @@ export default function MusicPage() {
   return (
     <>
       <Head>
-        <title>音乐页 | 认知工作站</title>
+        <title>音乐页 | 科研开发工作站</title>
         <meta name="description" content="Mineradio 风格的音乐页，播放列表来自工作站设置中的歌曲 ID。" />
       </Head>
       <WorkstationMusicPage />

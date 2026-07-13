@@ -1,6 +1,6 @@
 # Desktop Shell
 
-`apps/desktop-shell` 是认知工作站的 Windows Electron 应用。Electron 提供 Chromium 渲染器、主窗口、托盘和全局快捷键；业务状态仍由本地 `workbench-core` 管理，Homepage 以 Next.js standalone 服务运行。
+`apps/desktop-shell` 是科研开发工作站的 Windows Electron 应用。Electron 提供 Chromium 渲染器、主窗口、托盘和全局快捷键；业务状态仍由本地 `workbench-core` 管理，Homepage 以 Next.js standalone 服务运行。
 
 ## 已实现
 
@@ -30,7 +30,7 @@ pnpm desktop:dist
 
 - `desktop:dev`：构建 contracts、core、Homepage 和桌面壳后启动 Electron。
 - `desktop:pack`：生成 `release/win-unpacked/`。
-- `desktop:dist`：生成 `release/CognitiveWorkstation-<version>-x64.exe` 和 blockmap。
+- `desktop:dist`：生成 `release/ResearchWorkstation-<version>-x64.exe` 和 blockmap。
 
 打包前应退出 `pnpm dev`。`better-sqlite3` 需要针对 Electron ABI 重建，`scripts/run-builder.mjs` 会在打包前备份 Node.js 版本并在结束后自动恢复；若 core 仍在运行并锁住原生模块，打包会明确失败。
 
@@ -39,7 +39,7 @@ pnpm desktop:dist
 默认目录：
 
 ```text
-%APPDATA%/Cognitive Workstation/
+%APPDATA%/Research Workstation/
   data/workbench.sqlite
   config/homepage/*.yaml
   config/nextauth-secret
@@ -61,7 +61,7 @@ HOMEPAGE_EXTERNAL=1
 HOMEPAGE_URL=http://127.0.0.1:3000
 ```
 
-其他可用覆盖：`WORKBENCH_CORE_PORT`、`HOMEPAGE_PORT`、`DATABASE_URL`、`ACTIVITYWATCH_URL`、`ACTIVITYWATCH_MANAGED`、`ACTIVITYWATCH_HOME`、`MUSIC_SERVICE_URL`、`TOKEI_REPO`、`TOKEI_PYTHON`、`NEXTAUTH_SECRET` 和 `COGNITIVE_WORKSTATION_USER_DATA_DIR`。打包时可用 `ACTIVITYWATCH_BUNDLE_DIR`、`TOKEI_BUNDLE_DIR` 和 `TOKEI_PYTHON_HOME` 指定运行时来源。
+其他可用覆盖：`WORKBENCH_CORE_PORT`、`HOMEPAGE_PORT`、`DATABASE_URL`、`ACTIVITYWATCH_URL`、`ACTIVITYWATCH_MANAGED`、`ACTIVITYWATCH_HOME`、`MUSIC_SERVICE_URL`、`TOKEI_REPO`、`TOKEI_PYTHON`、`NEXTAUTH_SECRET` 和 `RESEARCH_WORKSTATION_USER_DATA_DIR`。打包时可用 `ACTIVITYWATCH_BUNDLE_DIR`、`TOKEI_BUNDLE_DIR` 和 `TOKEI_PYTHON_HOME` 指定运行时来源。
 
 ## 快捷键
 

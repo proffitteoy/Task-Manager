@@ -14,7 +14,7 @@ export default function WorkstationPage() {
   return (
     <>
       <Head>
-        <title>认知工作站</title>
+        <title>科研开发工作站</title>
       </Head>
       <WorkstationDashboard />
     </>

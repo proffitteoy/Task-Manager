@@ -41,17 +41,26 @@ export class ActivityWatchAdapter {
       const buckets = await this.fetchBuckets(baseUrl);
       const windowBucket = findBucket(buckets, "aw-watcher-window");
       const afkBucket = findBucket(buckets, "aw-watcher-afk");
-      const [windowEvents, afkEvents] = await Promise.all([
+      const webBuckets = findBuckets(buckets, "aw-watcher-web");
+      const [windowEvents, afkEvents, webEventGroups] = await Promise.all([
         windowBucket ? this.fetchEventsForToday(baseUrl, windowBucket) : [],
-        afkBucket ? this.fetchEventsForToday(baseUrl, afkBucket) : []
+        afkBucket ? this.fetchEventsForToday(baseUrl, afkBucket) : [],
+        Promise.all(webBuckets.map((bucketId) => this.fetchEventsForToday(baseUrl, bucketId)))
       ]);
+      const webEvents = webEventGroups.flat();
       return {
         connected: true,
         date: new Date().toISOString().slice(0, 10),
         events: [...windowEvents, ...afkEvents].sort((a, b) => String(a.timestamp ?? "").localeCompare(String(b.timestamp ?? ""))),
+        streams: {
+          window: windowEvents,
+          afk: afkEvents,
+          web: webEvents
+        },
         buckets: {
           window: windowBucket,
-          afk: afkBucket
+          afk: afkBucket,
+          web: webBuckets
         },
         fetchedAt: new Date().toISOString()
       };
@@ -68,25 +77,62 @@ export class ActivityWatchAdapter {
 
   async summary(baseUrl = this.config.activityWatchUrl): Promise<Record<string, unknown>> {
     const [current, today] = await Promise.all([this.current(baseUrl), this.today(baseUrl)]);
-    const events = Array.isArray(today.events) ? (today.events as ActivityWatchEvent[]) : [];
+    const streams = isObject(today.streams) ? today.streams : {};
+    const windowEvents = eventList(streams.window);
+    const afkEvents = eventList(streams.afk);
+    const webEvents = eventList(streams.web);
+    const events = windowEvents.length > 0 || afkEvents.length > 0
+      ? [...windowEvents, ...afkEvents]
+      : eventList(today.events);
     const appMinutes = new Map<string, number>();
+    const windowMinutes = new Map<string, number>();
+    const domainMinutes = new Map<string, number>();
+    const hourlyMinutes = Array.from({ length: 24 }, () => 0);
     let afkMinutes = 0;
+    let trackedMinutes = 0;
 
-    for (const event of events) {
+    for (const event of windowEvents.length > 0 ? windowEvents : events) {
       const durationMinutes = Math.max(0, Number(event.duration ?? 0) / 60);
       const data = event.data ?? {};
       const app = typeof data.app === "string" && data.app ? data.app : undefined;
-      const status = typeof data.status === "string" ? data.status : undefined;
+      const title = typeof data.title === "string" && data.title ? data.title : undefined;
       if (app) appMinutes.set(app, (appMinutes.get(app) ?? 0) + durationMinutes);
+      if (title) windowMinutes.set(title, (windowMinutes.get(title) ?? 0) + durationMinutes);
+      trackedMinutes += durationMinutes;
+      addToHourlyBuckets(hourlyMinutes, event.timestamp, Number(event.duration ?? 0));
+    }
+
+    for (const event of afkEvents.length > 0 ? afkEvents : events) {
+      const durationMinutes = Math.max(0, Number(event.duration ?? 0) / 60);
+      const data = event.data ?? {};
+      const status = typeof data.status === "string" ? data.status : undefined;
       if (status === "afk") afkMinutes += durationMinutes;
+    }
+
+    for (const event of webEvents) {
+      const durationMinutes = Math.max(0, Number(event.duration ?? 0) / 60);
+      const data = event.data ?? {};
+      const domain = domainFromUrl(typeof data.url === "string" ? data.url : "");
+      if (domain) domainMinutes.set(domain, (domainMinutes.get(domain) ?? 0) + durationMinutes);
     }
 
     return {
       connected: current.connected === true && today.connected === true,
-      topApps: [...appMinutes.entries()]
-        .map(([name, minutes]) => ({ name, minutes: Math.round(minutes) }))
-        .sort((a, b) => b.minutes - a.minutes)
-        .slice(0, 8),
+      date: today.date,
+      trackedMinutes: Math.round(trackedMinutes),
+      topApps: rankedMinutes(appMinutes, 8),
+      topWindows: rankedMinutes(windowMinutes, 8),
+      topDomains: rankedMinutes(domainMinutes, 8),
+      hourlyActivity: hourlyMinutes.map((minutes, hour) => ({ hour, minutes: Math.round(minutes) })),
+      timeline: (windowEvents.length > 0 ? windowEvents : events)
+        .filter((event) => typeof event.data?.app === "string")
+        .sort((a, b) => String(a.timestamp ?? "").localeCompare(String(b.timestamp ?? "")))
+        .map((event) => ({
+          timestamp: event.timestamp,
+          duration: Math.max(0, Number(event.duration ?? 0)),
+          app: String(event.data?.app ?? "未知应用"),
+          title: typeof event.data?.title === "string" ? event.data.title : ""
+        })),
       afkMinutes: Math.round(afkMinutes),
       current,
       error: current.connected === false ? current.error : today.connected === false ? today.error : undefined
@@ -136,6 +182,51 @@ export class ActivityWatchAdapter {
 
 function findBucket(buckets: Record<string, unknown>, prefix: string): string | undefined {
   return Object.keys(buckets).find((bucketId) => bucketId.startsWith(prefix));
+}
+
+function findBuckets(buckets: Record<string, unknown>, prefix: string): string[] {
+  return Object.keys(buckets).filter((bucketId) => bucketId.startsWith(prefix));
+}
+
+function eventList(value: unknown): ActivityWatchEvent[] {
+  return Array.isArray(value) ? value.filter(isObject) as ActivityWatchEvent[] : [];
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function rankedMinutes(entries: Map<string, number>, limit: number): Array<{ name: string; minutes: number }> {
+  return [...entries.entries()]
+    .map(([name, minutes]) => ({ name, minutes: Math.round(minutes) }))
+    .filter((item) => item.minutes > 0)
+    .sort((a, b) => b.minutes - a.minutes)
+    .slice(0, limit);
+}
+
+function domainFromUrl(value: string): string | undefined {
+  if (!value) return undefined;
+  try {
+    return new URL(value).hostname.replace(/^www\./, "") || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function addToHourlyBuckets(buckets: number[], timestamp: string | undefined, durationSeconds: number): void {
+  const start = timestamp ? new Date(timestamp) : undefined;
+  if (!start || Number.isNaN(start.getTime()) || durationSeconds <= 0) return;
+
+  let cursor = start.getTime();
+  const end = cursor + durationSeconds * 1000;
+  while (cursor < end) {
+    const cursorDate = new Date(cursor);
+    const nextHour = new Date(cursorDate);
+    nextHour.setMinutes(60, 0, 0);
+    const segmentEnd = Math.min(end, nextHour.getTime());
+    buckets[cursorDate.getHours()] += (segmentEnd - cursor) / 60_000;
+    cursor = segmentEnd;
+  }
 }
 
 function errorMessage(error: unknown): string {

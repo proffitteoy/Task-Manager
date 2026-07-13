@@ -407,7 +407,7 @@ function Home({ initialSettings }) {
   return (
     <>
       <Head>
-        <title>{initialSettings.title || "认知工作站原始面板"}</title>
+        <title>{initialSettings.title || "科研开发工作站原始面板"}</title>
         <meta
           name="description"
           content={

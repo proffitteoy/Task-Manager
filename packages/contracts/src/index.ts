@@ -257,6 +257,8 @@ export interface ProjectPreference {
   name: string;
   color?: string;
   icon?: string;
+  allocationPercent?: number;
+  description?: string;
   defaultTimerPolicyId?: string;
   defaultMusicMood?: string;
   githubRepo?: string;

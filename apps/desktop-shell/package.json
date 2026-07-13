@@ -1,9 +1,9 @@
 {
   "name": "@cw/desktop-shell",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Chromium desktop shell for Cognitive Workstation",
-  "author": "Cognitive Workstation Contributors",
+  "description": "Chromium desktop shell for Research and Development Workstation",
+  "author": "Research and Development Workstation Contributors",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "main": "dist/main.js",
@@ -23,8 +23,8 @@
     "typescript": "^5.7.3"
   },
   "build": {
-    "appId": "dev.cognitive-workstation.desktop",
-    "productName": "Cognitive Workstation",
+    "appId": "dev.research-workstation.desktop",
+    "productName": "Research Workstation",
     "asar": true,
     "compression": "normal",
     "afterPack": "scripts/after-pack.cjs",
@@ -81,7 +81,7 @@
     ],
     "win": {
       "icon": "build/icon.png",
-      "artifactName": "CognitiveWorkstation-${version}-${arch}.${ext}",
+      "artifactName": "ResearchWorkstation-${version}-${arch}.${ext}",
       "target": [
         {
           "target": "nsis",
@@ -98,7 +98,7 @@
       "deleteAppDataOnUninstall": false,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "Cognitive Workstation"
+      "shortcutName": "Research Workstation"
     }
   }
 }

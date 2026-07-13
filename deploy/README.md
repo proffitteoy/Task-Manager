@@ -1,4 +1,4 @@
-# Cognitive Homepage Docker
+# Research Workstation Docker
 
 从仓库根目录运行：
 

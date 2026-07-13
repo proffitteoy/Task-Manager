@@ -30,10 +30,10 @@ let coreRuntime: RuntimeService | undefined;
 let homepageRuntime: RuntimeService | undefined;
 let isQuitting = false;
 
-app.setName("Cognitive Workstation");
-app.setAppUserModelId("dev.cognitive-workstation.desktop");
-if (process.env.COGNITIVE_WORKSTATION_USER_DATA_DIR) {
-  app.setPath("userData", resolve(process.env.COGNITIVE_WORKSTATION_USER_DATA_DIR));
+app.setName("Research Workstation");
+app.setAppUserModelId("dev.research-workstation.desktop");
+if (process.env.RESEARCH_WORKSTATION_USER_DATA_DIR) {
+  app.setPath("userData", resolve(process.env.RESEARCH_WORKSTATION_USER_DATA_DIR));
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -46,7 +46,7 @@ if (!hasSingleInstanceLock) {
 
 async function bootstrap(): Promise<void> {
   const userData = app.getPath("userData");
-  const smokeTest = process.env.COGNITIVE_WORKSTATION_SMOKE_TEST === "1";
+  const smokeTest = process.env.RESEARCH_WORKSTATION_SMOKE_TEST === "1";
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
 
   activityWatchRuntime = await startActivityWatchProcess(userData);
@@ -220,7 +220,7 @@ function handleBootstrapError(error: unknown): void {
   stopActivityWatchProcess();
   const userData = app.getPath("userData");
   dialog.showErrorBox(
-    "Cognitive Workstation 启动失败",
+    "科研开发工作站启动失败",
     `${errorMessage(error)}\n\n日志目录：${join(userData, "logs")}`
   );
   quitApplication();

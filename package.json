@@ -1,6 +1,6 @@
 {
-  "name": "cognitive-homepage-workspace",
-  "version": "0.1.0",
+  "name": "research-workstation",
+  "version": "1.0.0",
   "private": true,
   "license": "GPL-3.0-or-later",
   "packageManager": "pnpm@11.7.0",

@@ -8,7 +8,6 @@ import { createApp, type WorkbenchApp } from "../server.js";
 
 let workbench: WorkbenchApp;
 
-const BLOG_DEFAULT_TRACK_IDS = ["3313005946", "761594"];
 const LEGACY_PLACEHOLDER_TRACK_IDS = ["29764576", "185511"];
 
 beforeEach(async () => {
@@ -129,7 +128,7 @@ describe("workbench-core MVP", () => {
 
     const playlist = await workbench.app.inject("/api/music/playlist");
     expect(playlist.statusCode).toBe(200);
-    expect(playlist.json().trackIds).toEqual(BLOG_DEFAULT_TRACK_IDS);
+    expect(playlist.json().trackIds).toEqual([]);
 
     const play = await workbench.app.inject({
       method: "POST",
@@ -164,7 +163,7 @@ describe("workbench-core MVP", () => {
     expect(updated.statusCode).toBe(200);
     expect(updated.json().defaultMode).toBe("coding");
     expect(updated.json().activitywatch.baseUrl).toBe("http://127.0.0.1:5601");
-    expect(updated.json().music.playlistTrackIds).toEqual(BLOG_DEFAULT_TRACK_IDS);
+    expect(updated.json().music.playlistTrackIds).toEqual([]);
 
     const widgets = await workbench.app.inject("/api/settings/widgets");
     const firstWidgetId = widgets.json().widgets[0].id;
@@ -214,7 +213,7 @@ describe("workbench-core MVP", () => {
     expect(music.json().provider).toBe("disabled");
   });
 
-  it("replaces legacy placeholder playlist ids with the blog defaults", async () => {
+  it("removes legacy placeholder playlist ids without publishing personal defaults", async () => {
     const saved = await workbench.app.inject({
       method: "PATCH",
       url: "/api/settings/workstation",
@@ -225,7 +224,30 @@ describe("workbench-core MVP", () => {
       }
     });
     expect(saved.statusCode).toBe(200);
-    expect(saved.json().music.playlistTrackIds).toEqual(BLOG_DEFAULT_TRACK_IDS);
+    expect(saved.json().music.playlistTrackIds).toEqual([]);
+  });
+
+  it("seeds six planning boards and supports deleting tasks", async () => {
+    const projects = await workbench.app.inject("/api/projects");
+    expect(projects.statusCode).toBe(200);
+    expect(projects.json().projects.map((project: { id: string }) => project.id)).toEqual([
+      "math",
+      "kaoyan",
+      "basic",
+      "tech",
+      "research",
+      "buffer"
+    ]);
+
+    const created = await workbench.app.inject({
+      method: "POST",
+      url: "/api/tasks",
+      payload: { title: "验证码绕过", projectId: "tech", tags: ["认证", "调试"] }
+    });
+    const taskId = created.json().task.id;
+    const deleted = await workbench.app.inject({ method: "DELETE", url: `/api/tasks/${taskId}` });
+    expect(deleted.statusCode).toBe(200);
+    expect((await workbench.app.inject("/api/tasks")).json().tasks).toEqual([]);
   });
 
   it("creates indexes for dashboard and review queries", async () => {

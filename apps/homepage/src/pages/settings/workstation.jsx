@@ -10,8 +10,6 @@ const SECTIONS = [
   ["stats", "统计"],
 ];
 
-const DEFAULT_TRACK_IDS = ["3313005946", "761594"];
-
 export async function getStaticProps() {
   return {
     props: {
@@ -61,7 +59,7 @@ export default function WorkstationSettingsPage() {
             <div>
               <h1 className="text-3xl font-black md:text-5xl">工作站设置</h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600 md:text-base">
-                这里只保留当前真正会影响播放、ActivityWatch 和统计的设置。不再堆一页泛化配置。
+                配置仅写入本机数据目录。开源发行包不会预置个人账号、本机路径或私人歌单。
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -128,7 +126,7 @@ function OverviewSection({ settings, status }) {
     <div>
       <SectionHeader
         title="概览"
-        description="先确认现在真正接上的东西，再决定要不要改。"
+        description="查看当前本地配置状态。空白账号、路径和歌单表示尚未配置。"
       />
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -171,7 +169,7 @@ function MusicSection({ data, busy, onSave }) {
     <div>
       <SectionHeader
         title="音乐"
-        description="按 F:\\my blog 的方式，这里只保留会真的影响播放的项。"
+        description="配置本地播放器使用的歌曲。发行版本不附带任何个人歌单。"
       />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
@@ -210,7 +208,7 @@ function MusicSection({ data, busy, onSave }) {
               <textarea
                 className={`${INPUT_CLASS} min-h-[220px] py-3 leading-7`}
                 disabled={busy}
-                placeholder={"例如：\n3313005946\n761594"}
+                placeholder="输入歌曲 ID，每行一个"
                 value={draft.playlistText}
                 onChange={(event) => setDraft((current) => ({ ...current, playlistText: event.target.value }))}
               />
@@ -233,14 +231,6 @@ function MusicSection({ data, busy, onSave }) {
             >
               保存音乐设置
             </button>
-            <button
-              className={SECONDARY_BUTTON_CLASS}
-              disabled={busy}
-              onClick={() => setDraft((current) => ({ ...current, playlistText: DEFAULT_TRACK_IDS.join("\n") }))}
-              type="button"
-            >
-              恢复博客默认歌单
-            </button>
           </div>
         </Card>
 
@@ -249,8 +239,8 @@ function MusicSection({ data, busy, onSave }) {
           <ul className="mt-3 space-y-2 text-sm leading-7 text-slate-700">
             <li>当前提供方：{draft.provider}</li>
             <li>当前解析到 {parsedTrackIds.length} 首候选歌曲</li>
-            <li>播放器布局和粒子效果现在按 F:\my blog 的结构走</li>
-            <li>桌面歌词、情绪规则这类暂时不放这里，避免设置页继续膨胀</li>
+            <li>歌曲 ID 只保存在本地工作站数据库中</li>
+            <li>留空时播放器不会自动加载维护者的个人歌单</li>
           </ul>
         </Card>
       </div>
@@ -329,7 +319,7 @@ function StatsSection({ data, busy, onSave }) {
     <div>
       <SectionHeader
         title="统计"
-        description="这里只保留当前真正在用的两个来源：Tokei 仓库路径和 GitHub 用户名。"
+        description="按需配置本地 Token collector 和公开 GitHub 用户名；发行版本默认留空。"
       />
 
       <Card>
@@ -338,6 +328,7 @@ function StatsSection({ data, busy, onSave }) {
             <input
               className={INPUT_CLASS}
               disabled={busy}
+              placeholder="例如 D:\\tools\\tokei"
               value={draft.tokeiRepo}
               onChange={(event) => setDraft((current) => ({ ...current, tokeiRepo: event.target.value }))}
             />
@@ -347,6 +338,7 @@ function StatsSection({ data, busy, onSave }) {
             <input
               className={INPUT_CLASS}
               disabled={busy}
+              placeholder="例如 octocat"
               value={draft.githubUsername}
               onChange={(event) => setDraft((current) => ({ ...current, githubUsername: event.target.value }))}
             />
@@ -420,9 +412,6 @@ const INPUT_CLASS =
 
 const PRIMARY_BUTTON_CLASS =
   "rounded-2xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-600 disabled:opacity-50";
-
-const SECONDARY_BUTTON_CLASS =
-  "rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50";
 
 async function fetchJson(url) {
   const response = await fetch(url, { cache: "no-store" });

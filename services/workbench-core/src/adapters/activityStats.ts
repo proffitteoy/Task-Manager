@@ -14,6 +14,17 @@ export class ActivityStatsAdapter {
   async tokeiUsage(forceFresh = false, settings: { tokeiRepo?: string; tokeiPython?: string } = {}): Promise<Record<string, unknown>> {
     const now = Date.now();
     const requestedRepo = settings.tokeiRepo || this.config.tokeiRepo;
+    if (!requestedRepo) {
+      return {
+        connected: false,
+        source: "Tokei collector",
+        roots: [],
+        requestedRoots: [],
+        error: "尚未配置 Tokei collector 路径",
+        usage: null,
+        daily: null
+      };
+    }
     const source = resolveTokeiSource(requestedRepo) ?? resolveTokeiSource(this.config.tokeiRepo);
     const cacheKey = `${requestedRepo}::${source?.repo ?? "missing"}`;
     if (!forceFresh && this.tokeiCache?.tokeiRepo === cacheKey && now - this.tokeiCache.at < 5 * 60_000) {
@@ -78,6 +89,20 @@ export class ActivityStatsAdapter {
 
   async githubContributions(forceFresh = false, username = this.config.githubUsername): Promise<Record<string, unknown>> {
     const now = Date.now();
+    if (!username) {
+      return {
+        connected: false,
+        fetchedAt: now,
+        username: "",
+        source: "github.com",
+        roots: [],
+        repos: [],
+        days: [],
+        total: 0,
+        activeDays: 0,
+        error: "尚未配置 GitHub 用户名"
+      };
+    }
     if (!forceFresh && this.githubCache?.username === username && now - this.githubCache.at < 5 * 60_000) {
       return this.githubCache.payload;
     }
@@ -216,7 +241,7 @@ async function fetchText(url: string, timeout: number): Promise<string> {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "cognitive-homepage-workbench-core",
+        "User-Agent": "research-workstation-core",
         Accept: "text/html,application/json"
       }
     });

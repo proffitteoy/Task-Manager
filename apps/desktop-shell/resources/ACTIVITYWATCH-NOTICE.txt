@@ -7,6 +7,6 @@ ActivityWatch is licensed under the Mozilla Public License 2.0 (MPL-2.0).
 Project source: https://github.com/ActivityWatch/activitywatch
 License text: https://www.mozilla.org/MPL/2.0/
 
-The Cognitive Workstation desktop shell starts these unmodified executables
+The Research Workstation desktop shell starts these unmodified executables
 locally and communicates with aw-server through its HTTP API. Activity data
 remains in the user's local ActivityWatch data directory.

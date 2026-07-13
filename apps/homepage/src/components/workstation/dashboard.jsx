@@ -5,25 +5,16 @@ import BlogBackground from "components/blog-background/BlogBackground";
 import WorkstationMusicPlayer from "components/workstation/music-player";
 
 const TABS = [
-  { id: "overview", label: "首页", caption: "今日入口" },
-  { id: "planner", label: "日程计划", caption: "任务队列" },
-  { id: "timer", label: "弹性计时", caption: "专注记录" },
-  { id: "stats", label: "Token/GitHub", caption: "开发统计" },
-  { id: "activity", label: "电脑活动", caption: "ActivityWatch" },
-  { id: "music", label: "音乐", caption: "Mineradio" },
-  { id: "review", label: "每日复盘", caption: "闭环输出" },
+  { id: "overview", label: "首页" },
+  { id: "planner", label: "日程计划" },
+  { id: "timer", label: "弹性计时" },
+  { id: "stats", label: "开发统计" },
+  { id: "activity", label: "电脑活动" },
+  { id: "music", label: "音乐" },
+  { id: "review", label: "每日复盘" },
 ];
 
 const TAB_IDS = new Set(TABS.map((tab) => tab.id));
-
-const MODE_LABELS = {
-  study: "学习",
-  coding: "开发",
-  writing: "写作",
-  music: "音乐",
-  review: "复盘",
-  rest: "休息",
-};
 
 const STATUS_LABELS = {
   todo: "待办",
@@ -42,21 +33,22 @@ export default function WorkstationDashboard() {
   const { data, error, isLoading, mutate } = useSWR("/api/workstation/widgets/workstation", fetchJson, {
     refreshInterval: 8_000,
   });
+  const { data: resources } = useSWR("/api/workstation/system-resources", fetchJson, { refreshInterval: 3_000 });
   const [activeTab, setActiveTab] = useState("overview");
   const [taskTitle, setTaskTitle] = useState("");
+  const [taskProjectId, setTaskProjectId] = useState("");
+  const [taskTags, setTaskTags] = useState("");
+  const [resourceHistory, setResourceHistory] = useState({ cpu: [], memory: [], gpu: [] });
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [tick, setTick] = useState(() => Date.now());
 
   const tasks = data?.tasks ?? [];
+  const projects = data?.projects ?? [];
   const timer = data?.timer ?? { running: false, paused: false };
   const summary = data?.summary ?? {};
-  const activity = data?.activity ?? {};
-  const music = data?.music ?? {};
-  const status = data?.status ?? {};
   const review = data?.review ?? null;
   const settings = data?.settings ?? {};
-  const currentMode = status.mode ?? settings.defaultMode ?? "study";
 
   useEffect(() => {
     document.documentElement.classList.remove("dark");
@@ -82,6 +74,15 @@ export default function WorkstationDashboard() {
     return () => window.clearInterval(id);
   }, [timer.session]);
 
+  useEffect(() => {
+    if (!resources?.fetchedAt) return;
+    setResourceHistory((current) => ({
+      cpu: appendPoint(current.cpu, resources.cpu?.usagePercent),
+      memory: appendPoint(current.memory, resources.memory?.usagePercent),
+      gpu: appendPoint(current.gpu, resources.gpu?.usagePercent),
+    }));
+  }, [resources]);
+
   const taskStats = useMemo(() => {
     const stats = { todo: 0, doing: 0, done: 0, blocked: 0 };
     for (const task of tasks) {
@@ -91,13 +92,9 @@ export default function WorkstationDashboard() {
   }, [tasks]);
 
   const activeTask = tasks.find((task) => task.id === timer.session?.taskId);
+  const activeProject = projects.find((project) => project.id === timer.session?.projectId);
   const nextTask = tasks.find((task) => task.status === "doing") ?? tasks.find((task) => task.status === "todo");
   const elapsedMinutes = timer.session ? sessionMinutes(timer.session, tick) : 0;
-  const topApps = Array.isArray(summary.topApps) ? summary.topApps.slice(0, 10) : [];
-  const connectionEntries = useMemo(
-    () => buildConnectionEntries({ activity, music, settings, status, summary }),
-    [activity, music, settings, status, summary]
-  );
 
   async function run(label, action, doneMessage) {
     setBusy(label);
@@ -122,12 +119,14 @@ export default function WorkstationDashboard() {
       () =>
         postJson("/api/workstation/tasks", {
           title,
+          projectId: taskProjectId || undefined,
           plannedDate: todayKey(),
-          tags: [],
+          tags: parseTags(taskTags),
         }),
       "任务已加入今天。"
     );
     setTaskTitle("");
+    setTaskTags("");
   }
 
   function selectTab(tabId) {
@@ -145,6 +144,22 @@ export default function WorkstationDashboard() {
     );
   }
 
+  function startProjectFocus(projectId) {
+    return run(
+      "timer",
+      () => postJson("/api/workstation/timer/start", { projectId }),
+      "已按板块启动专注。"
+    );
+  }
+
+  function updateTask(taskId, payload) {
+    return run(`task-${taskId}`, () => patchJson(`/api/workstation/tasks/${encodeURIComponent(taskId)}`, payload), "任务已更新。");
+  }
+
+  function deleteTask(taskId) {
+    return run(`task-${taskId}`, () => deleteJson(`/api/workstation/tasks/${encodeURIComponent(taskId)}`), "任务已删除。");
+  }
+
   function pauseOrResume() {
     return run(
       "timer",
@@ -154,7 +169,7 @@ export default function WorkstationDashboard() {
   }
 
   function stopFocus() {
-    return run("timer", () => postJson("/api/workstation/timer/stop", { reason: "首页结束本轮专注" }), "本轮专注已归档。");
+    return run("timer", () => postJson("/api/workstation/timer/stop", { reason: "用户结束专注" }), "");
   }
 
   function closeDay() {
@@ -169,49 +184,49 @@ export default function WorkstationDashboard() {
           isLoading={isLoading}
           nextTask={nextTask}
           taskStats={taskStats}
+          projects={projects}
           taskTitle={taskTitle}
+          taskProjectId={taskProjectId}
+          taskTags={taskTags}
           tasks={tasks}
           timer={timer}
           onCreateTask={createTask}
           onStartFocus={startFocus}
+          onDeleteTask={deleteTask}
+          onTaskProjectChange={setTaskProjectId}
+          onTaskTagsChange={setTaskTags}
           onTaskTitleChange={setTaskTitle}
+          onUpdateTask={updateTask}
         />
       </section>
     ),
     timer: (
-      <section className="workstation-tab-grid workstation-tab-grid-two">
+      <section className="workstation-tab-grid">
         <TimerPanel
           activeTask={activeTask}
+          activeProject={activeProject}
           busy={busy}
           elapsedMinutes={elapsedMinutes}
-          timer={timer}
-          onPauseOrResume={pauseOrResume}
-          onStartFocus={startFocus}
-          onStopFocus={stopFocus}
-        />
-        <TaskPanel
-          busy={busy}
-          compact
-          isLoading={isLoading}
-          nextTask={nextTask}
-          taskStats={taskStats}
-          taskTitle={taskTitle}
+          projects={projects}
+          settings={settings}
+          summary={summary}
           tasks={tasks}
           timer={timer}
-          onCreateTask={createTask}
+          onPauseOrResume={pauseOrResume}
+          onStartProjectFocus={startProjectFocus}
           onStartFocus={startFocus}
-          onTaskTitleChange={setTaskTitle}
+          onStopFocus={stopFocus}
         />
       </section>
     ),
     stats: (
       <section className="workstation-tab-grid">
-        <StatsPanel settings={settings} summary={summary} />
+        <StatsPanel summary={summary} />
       </section>
     ),
     activity: (
       <section className="workstation-tab-grid">
-        <ActivityPanel activity={activity} settings={settings} summary={summary} topApps={topApps} />
+        <ComputerActivityPanel activity={computerActivityValue(summary)} history={resourceHistory} resources={resources} />
       </section>
     ),
     music: (
@@ -232,14 +247,9 @@ return (
       <section className="workstation-dashboard">
         <header className="workstation-hero">
           <div>
-            <p className="workstation-eyebrow">本地优先 · 全流程工作站</p>
-            <h1>认知工作站</h1>
-            <p className="workstation-hero-copy">今天只保留入口和真实状态；具体工作进入各自板块。</p>
-          </div>
-          <div className="workstation-mode-card">
-            <span>当前模式</span>
-            <strong>{labelOf(MODE_LABELS, currentMode)}</strong>
-            <small>{status.core?.ok ? "核心服务已连接" : "等待核心服务"}</small>
+            <p className="workstation-eyebrow">本地优先 · 科研开发全流程记录</p>
+            <h1>科研开发工作站</h1>
+            <p className="workstation-hero-copy">统一管理任务、分板块专注、开发活动与每日复盘，核心数据默认保存在本机。</p>
           </div>
         </header>
 
@@ -256,7 +266,6 @@ return (
               type="button"
             >
               <span>{tab.label}</span>
-              <small>{tab.caption}</small>
             </button>
           ))}
         </nav>
@@ -279,7 +288,6 @@ return (
           <div className={activeTab === "overview" ? "" : "hidden"}>
             <OverviewPanel
               busy={busy}
-              connectionEntries={connectionEntries}
               elapsedMinutes={elapsedMinutes}
               nextTask={nextTask}
               summary={summary}
@@ -296,13 +304,6 @@ return (
         </section>
 
         <footer className="workstation-footer">
-          <div>
-            {connectionEntries.map((entry) => (
-              <span key={entry.id} className={entry.connected ? "is-enabled" : "is-warning"}>
-                {entry.label}
-              </span>
-            ))}
-          </div>
           <a href="/settings/workstation">工作站设置</a>
         </footer>
       </section>
@@ -310,16 +311,15 @@ return (
   );
 }
 
-function OverviewPanel({ busy, connectionEntries, elapsedMinutes, nextTask, summary, timer, onSelectTab, onStartFocus }) {
-  const connectedCount = connectionEntries.filter((entry) => entry.connected).length;
+function OverviewPanel({ busy, elapsedMinutes, nextTask, summary, timer, onSelectTab, onStartFocus }) {
   return (
     <section className="workstation-overview-shell">
       <article className="workstation-panel workstation-today-panel">
-        <PanelHeader eyebrow="今日入口" title={timer.session ? "当前专注" : "下一步"} />
+        <PanelHeader title={timer.session ? "当前专注" : "今日概览"} />
         <div className="workstation-focus-brief">
           <span>{timer.session ? (timer.paused ? "已暂停" : "专注中") : "准备开始"}</span>
           <strong>{timer.session ? formatMinutes(elapsedMinutes) : nextTask?.title ?? "今天还没有待办"}</strong>
-          <small>{timer.session ? "本轮记录会进入每日复盘。" : nextTask ? "从下一项开始，或者进入日程计划调整队列。" : "先写下一项任务，再启动计时。"}</small>
+          <small>{timer.session ? "专注记录将用于当日统计。" : nextTask ? "可以直接开始，也可以先调整任务板块与标签。" : "先在日程计划中添加一项任务。"}</small>
         </div>
         <div className="workstation-overview-actions">
           <button disabled={Boolean(timer.session || busy || !nextTask)} onClick={() => nextTask && onStartFocus(nextTask.id)} type="button">
@@ -334,31 +334,21 @@ function OverviewPanel({ busy, connectionEntries, elapsedMinutes, nextTask, summ
         </div>
         <div className="workstation-overview-metrics">
           <Metric label="今日专注" value={formatMinutes(summary.focusMinutes)} hint={`有效 ${formatMinutes(summary.effectiveFocusMinutes)}`} />
-          <Metric label="今日 Token" value={formatCompact(summary.tokenTotal)} hint="本地 Collector" />
-          <Metric label="GitHub 今日" value={formatCompact(summary.githubContributionCount)} hint="贡献记录" />
-        </div>
-      </article>
-
-      <article className="workstation-panel workstation-health-panel">
-        <PanelHeader eyebrow="真实连接状态" title={`${connectedCount}/${connectionEntries.length} 已连接`} />
-        <div className="workstation-connection-list">
-          {connectionEntries.map((entry) => (
-            <ConnectionRow key={entry.id} entry={entry} onSelectTab={onSelectTab} />
-          ))}
+          <Metric label="今日 Token" value={formatCompact(summary.tokenTotal)} hint="开发活动" />
+          <Metric label="今日提交" value={formatCompact(summary.githubContributionCount)} hint="GitHub" />
         </div>
       </article>
     </section>
   );
 }
 
-function TaskPanel({ busy, compact = false, isLoading, nextTask, taskStats, taskTitle, tasks, timer, onCreateTask, onStartFocus, onTaskTitleChange }) {
-  const visibleTasks = compact ? tasks.slice(0, 4) : tasks.slice(0, 12);
+function TaskPanel({ busy, isLoading, nextTask, projects, taskStats, taskTitle, taskProjectId, taskTags, tasks, timer, onCreateTask, onDeleteTask, onStartFocus, onTaskProjectChange, onTaskTagsChange, onTaskTitleChange, onUpdateTask }) {
+  const visibleTasks = tasks.slice(0, 20);
   return (
-    <article className={`workstation-panel ${compact ? "" : "workstation-panel-wide"}`}>
+    <article className="workstation-panel workstation-panel-wide">
       <PanelHeader
         actionLabel={nextTask ? "启动下一项" : "无待办"}
         disabled={Boolean(timer.session || busy)}
-        eyebrow="时间分配与任务队列"
         onAction={nextTask ? () => onStartFocus(nextTask.id) : undefined}
         title="任务与日程"
       />
@@ -368,6 +358,16 @@ function TaskPanel({ busy, compact = false, isLoading, nextTask, taskStats, task
           onChange={(event) => onTaskTitleChange(event.target.value)}
           placeholder="写下今天要推进的任务"
           value={taskTitle}
+        />
+        <select aria-label="任务板块" onChange={(event) => onTaskProjectChange(event.target.value)} value={taskProjectId}>
+          <option value="">选择板块</option>
+          {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+        </select>
+        <input
+          aria-label="任务标签"
+          onChange={(event) => onTaskTagsChange(event.target.value)}
+          placeholder="标签，用逗号分隔"
+          value={taskTags}
         />
         <button disabled={busy === "create-task" || !taskTitle.trim()} type="submit">
           加入今天
@@ -382,18 +382,16 @@ function TaskPanel({ busy, compact = false, isLoading, nextTask, taskStats, task
       </div>
       <div className="workstation-task-list">
         {visibleTasks.map((task) => (
-          <div className="workstation-task-row" key={task.id}>
-            <div>
-              <strong>{task.title}</strong>
-              <small>
-                {STATUS_LABELS[task.status] ?? task.status}
-                {task.estimateMinutes ? ` · 预计 ${task.estimateMinutes} 分钟` : ""}
-              </small>
-            </div>
-            <button disabled={Boolean(timer.session || busy)} onClick={() => onStartFocus(task.id)} type="button">
-              开始
-            </button>
-          </div>
+          <TaskRow
+            key={task.id}
+            busy={busy}
+            projects={projects}
+            task={task}
+            timer={timer}
+            onDeleteTask={onDeleteTask}
+            onStartFocus={onStartFocus}
+            onUpdateTask={onUpdateTask}
+          />
         ))}
         {!isLoading && tasks.length === 0 ? <EmptyLine text="今天还没有任务。先写下一项，再启动专注。" /> : null}
       </div>
@@ -401,14 +399,55 @@ function TaskPanel({ busy, compact = false, isLoading, nextTask, taskStats, task
   );
 }
 
-function TimerPanel({ activeTask, busy, elapsedMinutes, timer, onPauseOrResume, onStartFocus, onStopFocus }) {
+function TaskRow({ busy, projects, task, timer, onDeleteTask, onStartFocus, onUpdateTask }) {
+  const [tagDraft, setTagDraft] = useState((task.tags ?? []).join(", "));
+  useEffect(() => setTagDraft((task.tags ?? []).join(", ")), [task.tags]);
+  const project = projects.find((item) => item.id === task.projectId);
   return (
-    <article className="workstation-panel workstation-timer-panel workstation-panel-tall">
-      <PanelHeader eyebrow="弹性规则与休息提醒" title="弹性专注计时" />
+    <div className="workstation-task-row">
+      <div className="workstation-task-copy">
+        <strong>{task.title}</strong>
+        <div className="workstation-task-meta">
+          <span>{STATUS_LABELS[task.status] ?? task.status}</span>
+          {project ? <span style={{ borderColor: project.color, color: project.color }}>{project.name}</span> : <span>未分板块</span>}
+          {(task.tags ?? []).map((tag) => <span key={tag}>#{tag}</span>)}
+        </div>
+      </div>
+      <div className="workstation-task-editors">
+        <select
+          aria-label={`${task.title}所属板块`}
+          onChange={(event) => onUpdateTask(task.id, { projectId: event.target.value || null })}
+          value={task.projectId ?? ""}
+        >
+          <option value="">未分板块</option>
+          {projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <input
+          aria-label={`${task.title}标签`}
+          onBlur={() => onUpdateTask(task.id, { tags: parseTags(tagDraft) })}
+          onChange={(event) => setTagDraft(event.target.value)}
+          placeholder="添加标签"
+          value={tagDraft}
+        />
+      </div>
+      <div className="workstation-task-actions">
+        <button disabled={Boolean(timer.session || busy)} onClick={() => onStartFocus(task.id)} type="button">开始</button>
+        <button className="is-danger" disabled={Boolean(busy)} onClick={() => onDeleteTask(task.id)} type="button">删除</button>
+      </div>
+    </div>
+  );
+}
+
+function TimerPanel({ activeTask, activeProject, busy, elapsedMinutes, projects, settings, summary, tasks, timer, onPauseOrResume, onStartProjectFocus, onStartFocus, onStopFocus }) {
+  const preferences = settings.tasks?.projectPreferences ?? [];
+  const minutesByProject = new Map((summary.topProjects ?? []).map((item) => [item.projectId, Number(item.minutes ?? 0)]));
+  return (
+    <article className="workstation-panel workstation-timer-panel workstation-panel-tall workstation-panel-wide">
+      <PanelHeader title="分板块弹性计时" />
       <div className="workstation-timer-face">
         <span>{timer.session ? (timer.paused ? "已暂停" : "专注中") : "未启动"}</span>
         <strong>{formatMinutes(elapsedMinutes)}</strong>
-        <small>{activeTask?.title ?? "可无任务启动，结束后再归档"}</small>
+        <small>{activeTask?.title ?? activeProject?.name ?? "选择一个任务或板块开始"}</small>
       </div>
       {timer.breakReminder?.level && timer.breakReminder.level !== "none" ? (
         <div className="workstation-inline-notice" role="status">
@@ -427,58 +466,224 @@ function TimerPanel({ activeTask, busy, elapsedMinutes, timer, onPauseOrResume, 
             </button>
           </>
         ) : (
-          <button disabled={busy === "timer"} onClick={() => onStartFocus()} type="button">
-            直接开始
-          </button>
+          <button disabled={busy === "timer"} onClick={() => onStartFocus()} type="button">无板块计时</button>
         )}
       </div>
+      <div className="workstation-project-grid">
+        {projects.map((project) => {
+          const preference = preferences.find((item) => item.id === project.id);
+          const projectTasks = tasks.filter((task) => task.projectId === project.id && task.status !== "done");
+          return (
+            <article key={project.id} style={{ "--project-color": project.color ?? "#475467" }}>
+              <header><span>{project.icon}</span><strong>{project.name}</strong><em>{preference?.allocationPercent ?? 0}%</em></header>
+              <p>{preference?.description ?? "本地任务板块"}</p>
+              <div><span>今日 {formatMinutes(minutesByProject.get(project.id))}</span><span>{projectTasks.length} 项待推进</span></div>
+              <div className="workstation-project-actions">
+                {projectTasks[0] ? <button disabled={Boolean(timer.session || busy)} onClick={() => onStartFocus(projectTasks[0].id)} type="button">开始下一项</button> : null}
+                <button disabled={Boolean(timer.session || busy)} onClick={() => onStartProjectFocus(project.id)} type="button">按板块计时</button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
     </article>
   );
 }
 
-function ActivityPanel({ activity, settings, summary, topApps }) {
-  const status = summary.moduleStatus?.activityWatch ?? {};
-  const windowData = objectValue(activity.window);
-  const afkData = objectValue(activity.afk);
-  const appName = stringValue(windowData.app) || "未读取到当前应用";
-  const title = stringValue(windowData.title) || stringValue(windowData.window);
-  const afkStatus = stringValue(afkData.status);
-  const activityUrl = activity.baseUrl ?? status.baseUrl ?? settings.activitywatch?.baseUrl;
+function ComputerActivityPanel({ activity, history, resources }) {
+  const gpuMemoryPercent = resources?.gpu?.memoryTotalMb
+    ? (Number(resources.gpu.memoryUsedMb ?? 0) / Number(resources.gpu.memoryTotalMb)) * 100
+    : null;
+  const topApps = Array.isArray(activity.topApps) ? activity.topApps : [];
+  const topWindows = Array.isArray(activity.topWindows) ? activity.topWindows : [];
+  const topDomains = Array.isArray(activity.topDomains) ? activity.topDomains : [];
+  const timeline = Array.isArray(activity.timeline) ? activity.timeline : [];
+  const hourlyActivity = Array.isArray(activity.hourlyActivity) ? activity.hourlyActivity : [];
+
   return (
     <article className="workstation-panel workstation-panel-wide workstation-panel-tall">
-      <PanelHeader eyebrow="ActivityWatch · 电脑活动" title="电脑活动" />
-      <div className="workstation-status-line">
-        <span className={activity.connected === true ? "is-ok" : "is-warn"} />
-        <strong>{activity.connected === true ? "已连接 ActivityWatch" : "未连接 ActivityWatch"}</strong>
-        <small>{activity.connected === true ? `${appName}${title ? ` · ${title}` : ""}` : activity.error ?? status.error ?? "aw-server 未返回数据"}</small>
-      </div>
-      <div className="workstation-diagnostics">
-        <Diagnostic label="aw-server" value={activity.baseUrl ?? status.baseUrl ?? settings.activitywatch?.baseUrl ?? "-"} />
-        <Diagnostic label="AFK 状态" value={afkStatus || "暂无"} />
-        <Diagnostic label="有效专注" value={formatMinutes(summary.effectiveFocusMinutes)} />
-        <Diagnostic label="AFK 时间" value={formatMinutes(summary.afkMinutes)} />
-      </div>
-      {activityUrl ? (
-        <div className="workstation-actions">
-          <a className="workstation-inline-link" href={activityUrl} rel="noreferrer" target="_blank">
-            打开 ActivityWatch
-          </a>
+      <PanelHeader title="电脑活动" />
+      <section className="workstation-activity-section">
+        <div className="workstation-section-heading">
+          <div><span>应用活动</span><strong>{formatMinutes(activity.trackedMinutes)}</strong></div>
+          <p>当天窗口与网页事件仅在本机读取，不写入工作站数据库。</p>
         </div>
-      ) : null}
-      <div className="workstation-mini-list workstation-app-list">
-        {topApps.map((app, index) => (
-          <div key={`${app.name ?? index}-${index}`}>
-            <span>{app.name ?? app.app ?? `应用 ${index + 1}`}</span>
-            <strong>{formatMinutes(Number(app.minutes ?? app.durationMinutes ?? 0))}</strong>
+        {activity.connected ? (
+          <div className="workstation-computer-activity-grid">
+            <ActivityTimeline events={timeline} />
+            <HourlyActivityChart values={hourlyActivity} />
+            <ActivityDistribution items={topApps} />
+            <RankedActivityCard items={topApps} title="应用排行" />
+            <RankedActivityCard items={topWindows} title="窗口排行" />
+            <RankedActivityCard items={topDomains} title="网页域名" />
           </div>
+        ) : (
+          <EmptyLine text="未连接 ActivityWatch；连接后会显示应用排行、窗口、网页域名与当天时间线。" />
+        )}
+      </section>
+
+      <section className="workstation-activity-section workstation-system-section">
+        <div className="workstation-section-heading">
+          <div><span>系统资源</span><strong>最近 3 分钟</strong></div>
+          <p>CPU、内存与显卡指标只保留在当前浏览器会话。</p>
+        </div>
+      <div className="workstation-resource-grid">
+        <ResourceCard
+          color="#ef4444"
+          detail={resources?.cpu ? `用户 ${formatPercent(resources.cpu.userPercent)} · 系统 ${formatPercent(resources.cpu.systemPercent)}` : "等待采样"}
+          history={history.cpu}
+          label="CPU"
+          value={resources?.cpu?.usagePercent}
+        />
+        <ResourceCard
+          color="#eab308"
+          detail={resources?.memory ? `${formatBytes(resources.memory.usedBytes)} / ${formatBytes(resources.memory.totalBytes)}` : "等待采样"}
+          history={history.memory}
+          label="内存"
+          value={resources?.memory?.usagePercent}
+        />
+        <ResourceCard
+          color="#22c55e"
+          detail={resources?.gpu ? `${resources.gpu.model}${resources.gpu.temperatureC !== null ? ` · ${Math.round(resources.gpu.temperatureC)}°C` : ""}` : "驱动未提供 GPU 指标"}
+          history={history.gpu}
+          label="GPU"
+          value={resources?.gpu?.usagePercent}
+        />
+        <ResourceCard
+          color="#06b6d4"
+          detail={resources?.gpu?.memoryTotalMb ? `${formatCompact(resources.gpu.memoryUsedMb)} / ${formatCompact(resources.gpu.memoryTotalMb)} MB` : "驱动未提供显存指标"}
+          history={[]}
+          label="显存"
+          value={gpuMemoryPercent}
+        />
+      </div>
+      {resources?.errors?.length ? <ErrorList errors={resources.errors} /> : null}
+      </section>
+    </article>
+  );
+}
+
+function ActivityTimeline({ events }) {
+  const segments = events.map((event, index) => {
+    const timestamp = Date.parse(event.timestamp);
+    const date = new Date(timestamp);
+    if (!Number.isFinite(timestamp)) return null;
+    const startMinutes = date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60;
+    const left = Math.max(0, Math.min(100, (startMinutes / 1440) * 100));
+    const width = Math.max(0.28, Math.min(100 - left, (Number(event.duration ?? 0) / 86_400) * 100));
+    return {
+      ...event,
+      id: `${event.timestamp}-${event.app}-${index}`,
+      color: activityColor(event.app),
+      left,
+      width,
+    };
+  }).filter(Boolean);
+  return (
+    <article className="workstation-activity-card workstation-timeline-card">
+      <header><strong>当天时间线</strong><span>{segments.length} 段活动</span></header>
+      <div className="workstation-timeline" role="img" aria-label="当天应用活动时间线">
+        {segments.map((segment) => (
+          <span
+            key={segment.id}
+            title={`${formatClock(segment.timestamp)} · ${segment.app}${segment.title ? ` · ${segment.title}` : ""}`}
+            style={{ background: segment.color, left: `${segment.left}%`, width: `${segment.width}%` }}
+          />
         ))}
-        {topApps.length === 0 ? <EmptyLine text="暂无今日应用排行。请确认 ActivityWatch watcher 已启动。" /> : null}
+      </div>
+      <div className="workstation-timeline-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+    </article>
+  );
+}
+
+function HourlyActivityChart({ values }) {
+  const normalized = Array.from({ length: 24 }, (_, hour) => {
+    const item = values.find((entry) => Number(entry.hour) === hour);
+    return { hour, minutes: Math.max(0, Number(item?.minutes ?? 0)) };
+  });
+  const max = Math.max(1, ...normalized.map((item) => item.minutes));
+  return (
+    <article className="workstation-activity-card workstation-hourly-card">
+      <header><strong>每小时活动</strong><span>分钟</span></header>
+      <div className="workstation-hourly-bars">
+        {normalized.map((item) => (
+          <span key={item.hour} title={`${String(item.hour).padStart(2, "0")}:00 · ${formatMinutes(item.minutes)}`}>
+            <i style={{ height: `${Math.max(item.minutes > 0 ? 5 : 1, (item.minutes / max) * 100)}%` }} />
+          </span>
+        ))}
+      </div>
+      <div className="workstation-hourly-axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+    </article>
+  );
+}
+
+function ActivityDistribution({ items }) {
+  const visible = items.slice(0, 6);
+  const total = visible.reduce((sum, item) => sum + Math.max(0, Number(item.minutes ?? 0)), 0);
+  let cursor = 0;
+  const stops = visible.map((item) => {
+    const start = cursor;
+    cursor += total > 0 ? (Number(item.minutes ?? 0) / total) * 100 : 0;
+    return `${activityColor(item.name)} ${start}% ${cursor}%`;
+  });
+  const background = stops.length > 0 ? `conic-gradient(${stops.join(",")})` : "var(--ws-line-soft)";
+  return (
+    <article className="workstation-activity-card workstation-distribution-card">
+      <header><strong>应用分布</strong><span>前 {visible.length || 0} 项</span></header>
+      <div className="workstation-distribution-body">
+        <div className="workstation-donut" style={{ background }}><span>{formatMinutes(total)}</span></div>
+        <div className="workstation-donut-legend">
+          {visible.map((item) => <span key={item.name}><i style={{ background: activityColor(item.name) }} />{item.name}</span>)}
+        </div>
       </div>
     </article>
   );
 }
 
-function StatsPanel({ settings, summary }) {
+function RankedActivityCard({ items, title }) {
+  const visible = items.slice(0, 6);
+  const max = Math.max(1, ...visible.map((item) => Number(item.minutes ?? 0)));
+  return (
+    <article className="workstation-activity-card workstation-ranking-card">
+      <header><strong>{title}</strong><span>{visible.length} 项</span></header>
+      <div>
+        {visible.length > 0 ? visible.map((item, index) => (
+          <p key={`${item.name}-${index}`} title={item.name}>
+            <span>{item.name}</span><strong>{formatMinutes(item.minutes)}</strong>
+            <i style={{ background: activityColor(item.name), width: `${Math.max(3, (Number(item.minutes ?? 0) / max) * 100)}%` }} />
+          </p>
+        )) : <small>暂无数据</small>}
+      </div>
+    </article>
+  );
+}
+
+function ResourceCard({ color, detail, history, label, value }) {
+  const normalized = value !== null && value !== undefined && Number.isFinite(Number(value))
+    ? Math.max(0, Math.min(100, Number(value)))
+    : null;
+  return (
+    <article style={{ "--resource-color": color }}>
+      <header><span>{label}</span><strong>{normalized === null ? "不可用" : `${Math.round(normalized)}%`}</strong></header>
+      <ResourceChart color={color} values={history} />
+      <p>{detail ?? (normalized === null ? "等待采样" : "实时利用率")}</p>
+    </article>
+  );
+}
+
+function ResourceChart({ color, values }) {
+  const points = values.length > 1
+    ? values.map((value, index) => `${(index / (values.length - 1)) * 100},${40 - (Number(value) / 100) * 36}`).join(" ")
+    : "0,40 100,40";
+  return (
+    <svg aria-hidden="true" className="workstation-resource-chart" preserveAspectRatio="none" viewBox="0 0 100 40">
+      <path d="M0 40H100" stroke="rgba(15,23,42,.08)" />
+      <polyline fill="none" points={points} stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function StatsPanel({ summary }) {
   const [activeSource, setActiveSource] = useState("token");
   const [mode, setMode] = useState("daily");
   const tokenDashboard = objectValue(summary.tokenDashboard);
@@ -489,8 +694,6 @@ function StatsPanel({ settings, summary }) {
   const years = useMemo(() => buildActivityYears(activeDataset?.days ?? []), [activeDataset]);
   const activeYear = years.includes(year) ? year : years[0] ?? new Date().getFullYear();
   const heatmap = useMemo(() => buildYearHeatmap(activeDataset?.days ?? [], mode, activeYear), [activeDataset, activeYear, mode]);
-  const tokenStatus = summary.moduleStatus?.tokei ?? {};
-  const githubStatus = summary.moduleStatus?.github ?? {};
 
   useEffect(() => {
     if (!years.includes(year) && years.length > 0) setYear(years[0]);
@@ -498,23 +701,12 @@ function StatsPanel({ settings, summary }) {
 
   return (
     <article className="workstation-panel workstation-panel-wide workstation-panel-tall">
-      <PanelHeader eyebrow="本地开发活动统计" title="Token 与 GitHub" />
-      <div className="workstation-diagnostics">
-        <Diagnostic label="Token 源" value={firstValue(summary.tokenSource?.roots) ?? settings.activityStats?.tokeiRepo ?? "-"} />
-        <Diagnostic label="Collector" value={summary.tokenSource?.collector ?? tokenStatus.collector ?? "未找到 usage.30s.py"} />
-        <Diagnostic label="GitHub 用户" value={github.username ?? githubStatus.username ?? settings.activityStats?.githubUsername ?? "-"} />
-        <Diagnostic label="今日贡献" value={formatCompact(summary.githubContributionCount)} />
-      </div>
-
-      <div className="workstation-evidence">
-        <div>
-          <span>今日 Token</span>
-          <strong>{formatCompact(summary.tokenTotal)}</strong>
-        </div>
-        <div>
-          <span>今年 GitHub</span>
-          <strong>{formatCompact(github.total)}</strong>
-        </div>
+      <PanelHeader title="开发统计" />
+      <div className="workstation-evidence workstation-evidence-four">
+        <div><span>今日 Token</span><strong>{formatCompact(summary.tokenTotal)}</strong></div>
+        <div><span>今日提交</span><strong>{formatCompact(summary.githubContributionCount)}</strong></div>
+        <div><span>总 Token</span><strong>{formatCompact(summary.tokenCumulative)}</strong></div>
+        <div><span>总提交</span><strong>{formatCompact(github.total)}</strong></div>
       </div>
 
       {activeDataset ? (
@@ -545,9 +737,9 @@ function StatsPanel({ settings, summary }) {
 function ReviewPanel({ busy, review, summary, onCloseDay }) {
   return (
     <article className="workstation-panel workstation-panel-wide">
-      <PanelHeader actionLabel="生成复盘" disabled={busy === "review"} eyebrow="闭环输出" onAction={onCloseDay} title="每日复盘" />
+      <PanelHeader actionLabel="生成复盘" disabled={busy === "review"} onAction={onCloseDay} title="每日复盘" />
       <div className="workstation-review">
-        <p>{review?.summary ?? "复盘会汇总任务、计时、ActivityWatch、Token/GitHub 与音乐状态。"}</p>
+        <p>{review?.summary ?? "复盘汇总任务、分板块专注、开发统计与音乐状态。"}</p>
         <div className="workstation-review-grid">
           <span>完成任务：{summary.taskCompletedCount ?? 0}</span>
           <span>专注记录：{summary.sessionCount ?? 0}</span>
@@ -582,25 +774,6 @@ function Metric({ label, value, hint }) {
       <strong>{value}</strong>
       <small>{hint}</small>
     </div>
-  );
-}
-
-function Diagnostic({ label, value }) {
-  return (
-    <div>
-      <span>{label}</span>
-      <strong title={String(value ?? "-")}>{value ?? "-"}</strong>
-    </div>
-  );
-}
-
-function ConnectionRow({ entry, onSelectTab }) {
-  return (
-    <button className="workstation-connection-row" onClick={() => onSelectTab(entry.tab)} type="button">
-      <span className={entry.connected ? "is-ok" : "is-warn"} />
-      <strong>{entry.label}</strong>
-      <small>{entry.detail}</small>
-    </button>
   );
 }
 
@@ -686,6 +859,22 @@ async function postJson(url, payload) {
   return response.json();
 }
 
+async function patchJson(url, payload) {
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload ?? {}),
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json();
+}
+
+async function deleteJson(url) {
+  const response = await fetch(url, { method: "DELETE" });
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json();
+}
+
 async function readError(response) {
   const text = await response.text();
   try {
@@ -694,49 +883,6 @@ async function readError(response) {
   } catch {
     return text || response.statusText;
   }
-}
-
-function buildConnectionEntries({ activity, music, settings, status, summary }) {
-  const activityStatus = summary.moduleStatus?.activityWatch ?? {};
-  const tokeiStatus = summary.moduleStatus?.tokei ?? {};
-  const githubStatus = summary.moduleStatus?.github ?? {};
-  return [
-    {
-      id: "core",
-      label: "核心服务",
-      tab: "overview",
-      connected: status.core?.ok === true,
-      detail: status.core?.ok ? "任务、计时、复盘可用" : "workbench-core 未连接",
-    },
-    {
-      id: "activitywatch",
-      label: "电脑活动",
-      tab: "activity",
-      connected: activity.connected === true && activityStatus.connected !== false,
-      detail: activity.connected === true ? currentActivityLabel(activity) : activity.error ?? activityStatus.error ?? settings.activitywatch?.baseUrl ?? "ActivityWatch 未连接",
-    },
-    {
-      id: "tokei",
-      label: "Token",
-      tab: "stats",
-      connected: tokeiStatus.connected === true,
-      detail: tokeiStatus.connected === true ? firstValue(tokeiStatus.roots) ?? "Tokei 已连接" : tokeiStatus.error ?? "未读取到 usage.30s.py",
-    },
-    {
-      id: "github",
-      label: "GitHub",
-      tab: "stats",
-      connected: githubStatus.connected === true,
-      detail: githubStatus.connected === true ? `@${githubStatus.username ?? settings.activityStats?.githubUsername ?? "-"}` : githubStatus.error ?? "GitHub 贡献未连接",
-    },
-    {
-      id: "music",
-      label: "音乐",
-      tab: "music",
-      connected: music.connected === true,
-      detail: music.connected === true ? music.provider ?? "播放器已连接" : music.error ?? "未连接 Mineradio 服务",
-    },
-  ];
 }
 
 function buildActivityDatasets(tokenDashboard, github) {
@@ -835,11 +981,6 @@ function heatColor(value, max, tone) {
   return tone === "github" ? `rgba(22, 163, 74, ${alpha})` : `rgba(79, 70, 229, ${alpha})`;
 }
 
-function currentActivityLabel(activity) {
-  const windowData = objectValue(activity.window);
-  return stringValue(windowData.app) || stringValue(windowData.title) || "ActivityWatch 已连接";
-}
-
 function sessionMinutes(session, now) {
   if (!session) return 0;
   const seconds = (session.segments ?? []).reduce((total, segment) => {
@@ -867,10 +1008,6 @@ function formatCompact(value) {
   return new Intl.NumberFormat("zh-CN", { notation: numeric >= 10000 ? "compact" : "standard" }).format(numeric);
 }
 
-function labelOf(labels, value) {
-  return labels[value] ?? value ?? "-";
-}
-
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -884,7 +1021,7 @@ function localDateKey(date) {
 
 function initialTab() {
   if (typeof window === "undefined") return "overview";
-  const tab = window.location.hash.replace(/^#/, "");
+  const tab = String(window.location?.hash ?? "").replace(/^#/, "");
   return TAB_IDS.has(tab) ? tab : "overview";
 }
 
@@ -896,10 +1033,47 @@ function objectValue(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
-function stringValue(value) {
-  return typeof value === "string" ? value : "";
+function computerActivityValue(summary) {
+  const activity = objectValue(summary.computerActivity);
+  const moduleStatus = objectValue(objectValue(summary.moduleStatus).activityWatch);
+  return {
+    ...activity,
+    connected: activity.connected === true || moduleStatus.connected === true,
+    topApps: Array.isArray(activity.topApps) ? activity.topApps : Array.isArray(summary.topApps) ? summary.topApps : [],
+  };
 }
 
-function firstValue(value) {
-  return Array.isArray(value) && value.length > 0 ? value[0] : undefined;
+function parseTags(value) {
+  return [...new Set(String(value ?? "").split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean))];
+}
+
+function appendPoint(values, value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return values;
+  return [...values, numeric].slice(-60);
+}
+
+function formatBytes(value) {
+  const bytes = Number(value ?? 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 GB";
+  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+}
+
+function formatPercent(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${Math.round(numeric)}%` : "-";
+}
+
+function formatClock(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--:--";
+  return new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+}
+
+function activityColor(value) {
+  const palette = ["#2f766d", "#d97745", "#4579a8", "#bb4d67", "#7b68a6", "#779246", "#a06c3b", "#368598"];
+  const text = String(value ?? "");
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) hash = (hash * 31 + text.charCodeAt(index)) | 0;
+  return palette[Math.abs(hash) % palette.length];
 }

@@ -3,7 +3,6 @@
 import BackgroundEffects from "./BackgroundEffects";
 import BackgroundSlider from "./BackgroundSlider";
 import ClickEffect from "./ClickEffect";
-import DanmakuBackground from "./DanmakuBackground";
 import GlobalSnow from "./GlobalSnow";
 import { ThemeProvider } from "./ThemeProvider";
 import WeatherEffect from "./WeatherEffect";
@@ -29,9 +28,6 @@ export default function BlogBackground() {
         <div className="hidden md:block absolute inset-0 w-full h-full">
           <BackgroundEffects />
         </div>
-      </div>
-      <div className="hidden md:block" aria-hidden="true">
-        <DanmakuBackground />
       </div>
       <div className="hidden md:block" aria-hidden="true">
         <ClickEffect />

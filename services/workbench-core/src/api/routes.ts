@@ -19,7 +19,7 @@ export interface RouteContext {
 }
 
 export async function registerRoutes(app: FastifyInstance, context: RouteContext): Promise<void> {
-  app.get("/health", async () => ({ ok: true, version: "0.1.0" }));
+  app.get("/health", async () => ({ ok: true, version: "1.0.0" }));
 
   app.get("/api/workstation/status", async () => workstationStatus(context));
   app.get("/api/widgets/workstation", async () => widgetsPayload(context));
@@ -162,6 +162,13 @@ export async function registerRoutes(app: FastifyInstance, context: RouteContext
     const task = context.repository.updateTask(taskId, objectBody(request) as never);
     context.events.publish("task.updated", { taskId: task.id });
     return { task };
+  });
+
+  app.delete("/api/tasks/:id", async (request) => {
+    const taskId = stringField(request.params as Record<string, unknown>, "id");
+    context.repository.deleteTask(taskId);
+    context.events.publish("task.deleted", { taskId });
+    return { ok: true };
   });
 
   app.post("/api/tasks/:id/start-focus", async (request) => {
@@ -320,7 +327,7 @@ function workstationStatus(context: RouteContext): WorkstationStatus {
     mode: settings.defaultMode,
     core: {
       ok: true,
-      version: "0.1.0",
+      version: "1.0.0",
       databasePath: context.config.databasePath
     },
     modules: {
@@ -343,6 +350,8 @@ async function widgetsPayload(context: RouteContext): Promise<Record<string, unk
   ]);
   return {
     status: workstationStatus(context),
+    projects: context.repository.listProjects(),
+    timerPolicies: context.repository.listTimerPolicies(),
     tasks: context.repository.listTasks(),
     timer: context.repository.getCurrentTimer(),
     activity,
@@ -373,6 +382,7 @@ async function activitySummary(context: RouteContext, date: string): Promise<Rec
   }, 0);
   const githubToday = githubContributionForDate(github, date);
   const tokenTotal = tokenTotalFromTokei(tokei);
+  const tokenCumulative = cumulativeTokenTotal(tokei);
   const errors = [
     connectedError("ActivityWatch", activityWatch),
     connectedError("Tokei", tokei),
@@ -381,6 +391,27 @@ async function activitySummary(context: RouteContext, date: string): Promise<Rec
   const topApps = Array.isArray((activityWatch as { topApps?: unknown }).topApps)
     ? (activityWatch as { topApps: unknown[] }).topApps
     : [];
+  const computerActivity = {
+    connected: activityWatch.connected === true,
+    date: optionalString(activityWatch.date) ?? date,
+    trackedMinutes: optionalNumber(activityWatch.trackedMinutes) ?? 0,
+    topApps,
+    topWindows: Array.isArray(activityWatch.topWindows) ? activityWatch.topWindows : [],
+    topDomains: Array.isArray(activityWatch.topDomains) ? activityWatch.topDomains : [],
+    hourlyActivity: Array.isArray(activityWatch.hourlyActivity) ? activityWatch.hourlyActivity : [],
+    timeline: Array.isArray(activityWatch.timeline) ? activityWatch.timeline : [],
+    error: optionalString(activityWatch.error)
+  };
+
+  const projectById = new Map(context.repository.listProjects().map((project) => [project.id, project]));
+  const projectMinutes = new Map<string, number>();
+  for (const session of sessions) {
+    if (!session.projectId) continue;
+    projectMinutes.set(session.projectId, (projectMinutes.get(session.projectId) ?? 0) + (session.actualMinutes ?? 0));
+  }
+  const topProjects = [...projectMinutes.entries()]
+    .map(([projectId, minutes]) => ({ projectId, name: projectById.get(projectId)?.name ?? "未命名板块", minutes }))
+    .sort((left, right) => right.minutes - left.minutes);
 
   return {
     date,
@@ -388,9 +419,11 @@ async function activitySummary(context: RouteContext, date: string): Promise<Rec
     effectiveFocusMinutes,
     afkMinutes: Number((activityWatch as { afkMinutes?: number }).afkMinutes ?? 0),
     tokenTotal,
+    tokenCumulative,
     githubContributionCount: githubToday,
     topApps,
-    topProjects: [],
+    computerActivity,
+    topProjects,
     musicMinutes: 0,
     taskCompletedCount: tasks.filter((task) => task.status === "done" && task.plannedDate === date).length,
     sessionCount: sessions.length,
@@ -591,4 +624,10 @@ function tokenTotalFromTokei(payload: Record<string, unknown>): number | undefin
   const candidates = [usage.total_tokens, usage.totalTokens, usage.tokens, usage.total];
   const numeric = candidates.find((candidate) => typeof candidate === "number");
   return typeof numeric === "number" ? numeric : undefined;
+}
+
+function cumulativeTokenTotal(payload: Record<string, unknown>): number | undefined {
+  const dashboard = payload.dashboard;
+  if (!isObject(dashboard) || !Array.isArray(dashboard.daily)) return undefined;
+  return dashboard.daily.reduce((total, item) => total + (isObject(item) ? Number(item.tokens ?? 0) : 0), 0);
 }

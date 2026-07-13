@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="720" viewBox="0 0 1440 720" role="img" aria-labelledby="title desc">
+  <title id="title">科研开发工作站预览</title><desc id="desc">本地优先科研开发全流程记录工作站封面占位图</desc>
+  <rect width="1440" height="720" fill="#f4f1e8"/><path d="M0 600C320 520 560 710 900 590s430-70 540-20v150H0z" fill="#dce8df"/>
+  <g fill="none" stroke="#22352d" stroke-width="2" opacity=".12"><path d="M80 80H1360M80 160H1360M80 240H1360M80 320H1360M80 400H1360M80 480H1360"/><path d="M160 40V680M320 40V680M480 40V680M640 40V680M800 40V680M960 40V680M1120 40V680M1280 40V680"/></g>
+  <rect x="100" y="88" width="1240" height="544" rx="24" fill="#fff" stroke="#22352d" stroke-width="3"/><rect x="100" y="88" width="1240" height="68" rx="24" fill="#22352d"/>
+  <circle cx="140" cy="122" r="8" fill="#f0a020"/><circle cx="170" cy="122" r="8" fill="#e26b55"/><circle cx="200" cy="122" r="8" fill="#7db08b"/>
+  <text x="150" y="260" font-family="Segoe UI, sans-serif" font-size="28" font-weight="700" fill="#1f6f5f">LOCAL-FIRST · RESEARCH &amp; DEVELOPMENT</text>
+  <text x="150" y="350" font-family="Segoe UI, sans-serif" font-size="68" font-weight="800" fill="#17231f">科研开发工作站</text>
+  <text x="150" y="410" font-family="Segoe UI, sans-serif" font-size="28" fill="#52645c">任务 · 分板块计时 · 开发统计 · 电脑活动 · 复盘</text>
+  <rect x="150" y="485" width="290" height="76" rx="12" fill="#1f6f5f"/><text x="295" y="533" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="24" font-weight="700" fill="#fff">PREVIEW PLACEHOLDER</text>
+</svg>

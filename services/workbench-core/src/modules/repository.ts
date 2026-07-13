@@ -22,11 +22,10 @@ import type {
 
 import { evaluateBreakReminder } from "./breakReminder.js";
 
-import type { SqliteDatabase } from "../db/client.js";
+import { DEFAULT_PROJECTS, type SqliteDatabase } from "../db/client.js";
 
 type Row = Record<string, unknown>;
 
-const DEFAULT_BLOG_MUSIC_TRACK_IDS = ["3313005946", "761594"];
 const LEGACY_PLACEHOLDER_MUSIC_TRACK_IDS = ["29764576", "185511"];
 
 export class WorkbenchRepository {
@@ -140,6 +139,18 @@ export class WorkbenchRepository {
     return next;
   }
 
+  deleteTask(id: string): void {
+    const task = this.getTask(id);
+    if (!task) {
+      throw new Error(`Task not found: ${id}`);
+    }
+    const sessionCount = (this.sqlite.prepare("SELECT COUNT(*) AS count FROM focus_sessions WHERE task_id = ?").get(id) as { count: number }).count;
+    if (sessionCount > 0) {
+      this.sqlite.prepare("UPDATE focus_sessions SET task_id = NULL WHERE task_id = ?").run(id);
+    }
+    this.sqlite.prepare("DELETE FROM tasks WHERE id = ?").run(id);
+  }
+
   listTimerPolicies(): TimerPolicy[] {
     return (this.sqlite.prepare("SELECT * FROM timer_policies ORDER BY created_at ASC").all() as Row[]).map(mapTimerPolicy);
   }
@@ -237,7 +248,9 @@ export class WorkbenchRepository {
       throw new Error("A focus session is already active");
     }
     const task = input.taskId ? this.getTask(input.taskId) : undefined;
-    const policyId = input.policyId ?? task?.timerPolicyId ?? "elastic-50-10";
+    const projectId = input.projectId ?? task?.projectId;
+    const projectPreference = this.getWorkstationSettings().tasks.projectPreferences.find((item) => item.id === projectId);
+    const policyId = input.policyId ?? task?.timerPolicyId ?? projectPreference?.defaultTimerPolicyId ?? "elastic-50-10";
     const policy = this.getTimerPolicy(policyId);
     if (!policy) {
       throw new Error(`Timer policy not found: ${policyId}`);
@@ -254,7 +267,7 @@ export class WorkbenchRepository {
       .run({
         id: sessionId,
         taskId: input.taskId,
-        projectId: input.projectId ?? task?.projectId,
+        projectId,
         policyId,
         plannedMinutes: input.plannedMinutes ?? task?.estimateMinutes ?? policy.config.defaultFocusMinutes,
         startedAt: now,
@@ -477,7 +490,7 @@ export class WorkbenchRepository {
     const defaults = defaultSettings(String(row.updated_at ?? new Date().toISOString()));
     const saved = parseJson<Partial<WorkstationSettings>>(row.value_json, {});
     const settings = deepMerge(defaults, saved) as WorkstationSettings;
-    if (settings.activityStats.tokeiRepo === "F:\\工作站\\Task-Manager-main") {
+    if (/[\\/]Task-Manager-main$/i.test(settings.activityStats.tokeiRepo)) {
       settings.activityStats.tokeiRepo = defaults.activityStats.tokeiRepo;
     }
     if (settings.music.provider === "mock") {
@@ -796,8 +809,8 @@ function defaultSettings(updatedAt: string): WorkstationSettings {
       showEvidenceInReview: true
     },
     activityStats: {
-      tokeiRepo: "F:\\tokei",
-      githubUsername: "proffitteoy",
+      tokeiRepo: "",
+      githubUsername: "",
       refreshIntervalMinutes: 5,
       cacheEnabled: true,
       includeInReview: true,
@@ -808,7 +821,7 @@ function defaultSettings(updatedAt: string): WorkstationSettings {
       provider: "mineradio",
       enableLyrics: false,
       enableDesktopLyrics: false,
-      playlistTrackIds: DEFAULT_BLOG_MUSIC_TRACK_IDS,
+      playlistTrackIds: [],
       moodRules: {}
     },
     tasks: {
@@ -816,22 +829,11 @@ function defaultSettings(updatedAt: string): WorkstationSettings {
       defaultTags: [],
       allowTasksWithoutProject: true,
       autoStopTimerOnDone: false,
-      projectPreferences: [
-        {
-          id: "math",
-          name: "数学学习",
-          color: "blue",
-          defaultTimerPolicyId: "elastic-50-10",
-          defaultMusicMood: "deep-focus"
-        },
-        {
-          id: "coding",
-          name: "开源开发",
-          color: "violet",
-          defaultTimerPolicyId: "elastic-50-10",
-          defaultMusicMood: "coding"
-        }
-      ]
+      projectPreferences: DEFAULT_PROJECTS.map((project) => ({
+        ...project,
+        defaultTimerPolicyId: "elastic-50-10",
+        defaultMusicMood: project.id === "tech" ? "coding" : "deep-focus"
+      }))
     },
     theme: {
       globalTheme: "blog-light",
@@ -924,8 +926,8 @@ function normalizeMusicTrackIds(value: unknown): string[] {
     ? value.map((item) => String(item).trim()).filter(Boolean)
     : [];
 
-  if (trackIds.length === 0 || sameTrackIds(trackIds, LEGACY_PLACEHOLDER_MUSIC_TRACK_IDS)) {
-    return [...DEFAULT_BLOG_MUSIC_TRACK_IDS];
+  if (sameTrackIds(trackIds, LEGACY_PLACEHOLDER_MUSIC_TRACK_IDS)) {
+    return [];
   }
 
   return [...new Set(trackIds)];

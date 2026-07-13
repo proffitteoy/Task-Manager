@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-contextBridge.exposeInMainWorld("cognitiveWorkstation", {
+contextBridge.exposeInMainWorld("researchWorkstation", {
   openUserData: () => ipcRenderer.invoke("desktop:open-user-data"),
   coreStatus: () => ipcRenderer.invoke("desktop:core-status"),
   onNotice: (listener: (message: string) => void) => {

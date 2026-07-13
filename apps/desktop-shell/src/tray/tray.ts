@@ -9,7 +9,7 @@ export function createTray(options: {
   onShow: () => void;
 }): Tray {
   tray = new Tray(options.icon.resize({ width: 20, height: 20 }));
-  tray.setToolTip("Cognitive Workstation");
+  tray.setToolTip("Research Workstation");
   tray.on("click", options.onShow);
   tray.setContextMenu(
     Menu.buildFromTemplate([

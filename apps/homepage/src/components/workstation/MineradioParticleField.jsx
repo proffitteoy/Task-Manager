@@ -1,6 +1,5 @@
 "use client";
 /*
- * Adapted from F:\my blog\components\MineradioParticleField.tsx.
  * Portions of the visualizer come from XxHuberrr/Mineradio (GPL-3.0).
  */
 import { jsx } from "react/jsx-runtime";

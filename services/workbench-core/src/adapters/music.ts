@@ -168,7 +168,7 @@ function defaultTrack(): MusicTrack {
   return {
     id: "mock-deep-focus",
     title: "深度专注模拟曲",
-    artist: "认知工作站",
+    artist: "科研开发工作站",
     durationSeconds: 1800
   };
 }

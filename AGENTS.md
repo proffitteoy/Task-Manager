@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本文件是 `F:\工作站` 的根级协作契约。当前工作区是“认知工作站 / Cognitive Homepage”的 monorepo：以 `apps/homepage` 为主 UI base，以 `services/workbench-core` 管理任务、弹性计时、音乐、ActivityWatch、token/GitHub 统计与每日复盘。
+本文件是 `F:\工作站` 的根级协作契约。当前工作区是“科研开发工作站 / Research Workstation”的 monorepo：以 `apps/homepage` 为主 UI base，以 `services/workbench-core` 管理任务、弹性计时、音乐、ActivityWatch、开发统计与每日复盘。
 
 ## 1. 回答语言与规则优先级
 

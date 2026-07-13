@@ -4,7 +4,14 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import type { WorkbenchConfig } from "../config.js";
 import * as schema from "./schema.js";
 
-const DEFAULT_BLOG_MUSIC_TRACK_IDS = ["3313005946", "761594"];
+export const DEFAULT_PROJECTS = [
+  { id: "math", name: "数学基础", color: "#b42318", icon: "∑", allocationPercent: 38, description: "数学分析、高代、实变、泛函与 PDE 基础" },
+  { id: "kaoyan", name: "考研训练", color: "#247a5a", icon: "◎", allocationPercent: 22, description: "每日题量、专业课推进、证明复现与错题复盘" },
+  { id: "basic", name: "课程生活", color: "#52606d", icon: "□", allocationPercent: 10, description: "课程、作业、生活与行政任务" },
+  { id: "tech", name: "技术开源", color: "#9a6700", icon: "</>", allocationPercent: 18, description: "开源协作、编程、形式化与数据工程" },
+  { id: "research", name: "科研项目", color: "#b54708", icon: "⌁", allocationPercent: 8, description: "导师项目、论文阅读、数学前沿与计算实验" },
+  { id: "buffer", name: "缓冲机动", color: "#475467", icon: "…", allocationPercent: 4, description: "突发任务、状态波动、复盘与身体维护" }
+] as const;
 
 export type SqliteDatabase = Database.Database;
 export type DrizzleDatabase = ReturnType<typeof drizzle>;
@@ -151,6 +158,14 @@ export function migrate(sqlite: SqliteDatabase): void {
 
 function seedDefaults(sqlite: SqliteDatabase, config: WorkbenchConfig): void {
   const now = new Date().toISOString();
+  const insertProject = sqlite.prepare(
+    `INSERT OR IGNORE INTO projects (id, name, color, icon, created_at, updated_at)
+     VALUES (@id, @name, @color, @icon, @createdAt, @updatedAt)`
+  );
+  for (const project of DEFAULT_PROJECTS) {
+    insertProject.run({ ...project, createdAt: now, updatedAt: now });
+  }
+
   sqlite
     .prepare(
       `INSERT OR IGNORE INTO timer_policies
@@ -260,7 +275,7 @@ function defaultWorkstationSettings(updatedAt: string, config: WorkbenchConfig):
       serviceUrl: config.musicServiceUrl,
       enableLyrics: false,
       enableDesktopLyrics: false,
-      playlistTrackIds: DEFAULT_BLOG_MUSIC_TRACK_IDS,
+      playlistTrackIds: [],
       moodRules: {
         study: "deep-focus",
         coding: "coding",
@@ -274,22 +289,11 @@ function defaultWorkstationSettings(updatedAt: string, config: WorkbenchConfig):
       defaultTags: [],
       allowTasksWithoutProject: true,
       autoStopTimerOnDone: false,
-      projectPreferences: [
-        {
-          id: "math",
-          name: "数学学习",
-          color: "blue",
-          defaultTimerPolicyId: "elastic-50-10",
-          defaultMusicMood: "deep-focus"
-        },
-        {
-          id: "coding",
-          name: "开源开发",
-          color: "violet",
-          defaultTimerPolicyId: "elastic-50-10",
-          defaultMusicMood: "coding"
-        }
-      ]
+      projectPreferences: DEFAULT_PROJECTS.map((project) => ({
+        ...project,
+        defaultTimerPolicyId: "elastic-50-10",
+        defaultMusicMood: project.id === "tech" ? "coding" : "deep-focus"
+      }))
     },
     theme: {
       globalTheme: "blog-light",

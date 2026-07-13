@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: services/workbench-core/Dockerfile
-    image: cognitive-homepage/workbench-core:local
+    image: research-workstation/core:local
     container_name: workbench-core
     restart: unless-stopped
     ports:
@@ -15,15 +15,15 @@ services:
       PORT: 3900
       DATABASE_URL: file:/app/data/workbench.sqlite
       ACTIVITYWATCH_URL: http://host.docker.internal:5600
-      GITHUB_USERNAME: proffitteoy
-      TOKEI_REPO: /app/tokei
+      GITHUB_USERNAME: ${GITHUB_USERNAME:-}
+      TOKEI_REPO: ${TOKEI_REPO:-}
 
-  cognitive-homepage:
+  research-workstation-homepage:
     build:
       context: ..
       dockerfile: apps/homepage/Dockerfile
-    image: cognitive-homepage/homepage:local
-    container_name: cognitive-homepage
+    image: research-workstation/homepage:local
+    container_name: research-workstation-homepage
     restart: unless-stopped
     depends_on:
       - workbench-core

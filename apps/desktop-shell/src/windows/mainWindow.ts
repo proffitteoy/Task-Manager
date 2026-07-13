@@ -20,7 +20,7 @@ export function createMainWindow(options: {
     minWidth: 960,
     minHeight: 640,
     show: false,
-    title: "Cognitive Workstation",
+    title: "Research Workstation",
     webPreferences: {
       preload: join(currentDirectory, "../preload.js"),
       contextIsolation: true,
