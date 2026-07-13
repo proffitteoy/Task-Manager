@@ -34,6 +34,7 @@ export async function startHomepageProcess(userData: string, coreUrl: string): P
   const nextAuthSecret = process.env.NEXTAUTH_SECRET || getOrCreateSecret(join(userData, "config", "nextauth-secret"));
 
   homepageRuntime = await startRuntimeProcess({
+    acceptTcpReady: true,
     cwd: dirname(entry),
     entry,
     env: {
@@ -45,7 +46,7 @@ export async function startHomepageProcess(userData: string, coreUrl: string): P
       PORT: String(port),
       WORKBENCH_CORE_URL: coreUrl
     },
-    healthUrl: `${url}/api/healthcheck`,
+    healthUrl: `${url}/healthcheck.txt`,
     logFile: join(userData, "logs", "homepage.log"),
     name: "Homepage",
     timeoutMs: 60_000,

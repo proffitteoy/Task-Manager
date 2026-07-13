@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, type WriteStream } from "node:fs";
-import { createServer } from "node:net";
+import { createConnection, createServer } from "node:net";
 import { dirname } from "node:path";
 
 import { app } from "electron";
@@ -13,6 +13,7 @@ export interface RuntimeService {
 }
 
 interface SpawnRuntimeOptions {
+  acceptTcpReady?: boolean;
   args?: string[];
   cwd: string;
   entry: string;
@@ -54,6 +55,7 @@ export async function startRuntimeProcess(options: SpawnRuntimeOptions): Promise
 
   try {
     await waitForHttp(options.healthUrl, {
+      acceptTcpReady: options.acceptTcpReady,
       child,
       name: options.name,
       timeoutMs: options.timeoutMs ?? 45_000
@@ -105,7 +107,7 @@ export function normalizeLocalUrl(rawUrl: string | undefined, fallbackPort: numb
 
 async function waitForHttp(
   url: string,
-  options: { child?: ChildProcess; name: string; timeoutMs: number }
+  options: { acceptTcpReady?: boolean; child?: ChildProcess; name: string; timeoutMs: number }
 ): Promise<void> {
   const startedAt = Date.now();
   let spawnError: Error | undefined;
@@ -121,6 +123,10 @@ async function waitForHttp(
       throw new Error(`${options.name} 在就绪前退出，退出码 ${String(options.child.exitCode)}`);
     }
 
+    if (options.acceptTcpReady && (await canConnect(url))) {
+      return;
+    }
+
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
       if (response.status < 500) {
@@ -133,6 +139,24 @@ async function waitForHttp(
   }
 
   throw new Error(`${options.name} 启动超时（${Math.round(options.timeoutMs / 1_000)} 秒）：${url}`);
+}
+
+function canConnect(rawUrl: string): Promise<boolean> {
+  const url = new URL(rawUrl);
+  const port = Number(url.port || 80);
+  return new Promise((resolve) => {
+    const socket = createConnection({ host: url.hostname, port });
+    let settled = false;
+    const finish = (connected: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(connected);
+    };
+    socket.setTimeout(1_000, () => finish(false));
+    socket.once("connect", () => finish(true));
+    socket.once("error", () => finish(false));
+  });
 }
 
 function nodeRuntime(): { command: string; env: NodeJS.ProcessEnv } {

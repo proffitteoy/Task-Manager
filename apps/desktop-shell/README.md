@@ -5,7 +5,7 @@
 ## 已实现
 
 - 安装包内携带 Homepage standalone、`workbench-core` 与 SQLite 原生依赖。
-- 先启动 core、再启动 Homepage，健康检查通过后才创建主窗口。
+- 先启动 core、再启动 Homepage；core 保持 HTTP 健康检查，内置 Homepage 在端口开始监听后即交给 Chromium 完成首次页面请求，避免安装后的冷请求被短探针反复取消。打包内置的静态 `/healthcheck.txt` 继续用于安装包校验和诊断。
 - 默认优先使用 `127.0.0.1:3900` 和 `127.0.0.1:3000`；端口占用时自动选择本地空闲端口。
 - SQLite、Homepage 配置、认证密钥和日志保存在 Electron `userData`，升级不会覆盖已有 Homepage 配置。
 - 单实例、关闭到托盘、托盘退出、打开数据目录。

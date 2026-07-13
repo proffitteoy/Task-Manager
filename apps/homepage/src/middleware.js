@@ -27,7 +27,9 @@ export async function middleware(req) {
     return NextResponse.json({ error: "Host validation failed. See logs for more details." }, { status: 400 });
   }
 
-  if (authEnabled && !new URL(req.url).pathname.startsWith("/api/healthcheck")) {
+  const pathname = new URL(req.url).pathname;
+  const isHealthcheck = pathname === "/api/healthcheck" || pathname === "/healthcheck.txt";
+  if (authEnabled && !isHealthcheck) {
     if (new URL(req.url).pathname === "/api/mcp" && hasMcpToken(req)) {
       return NextResponse.next();
     }
@@ -47,6 +49,6 @@ export const config = {
   // Protect all app and API routes; allow Next.js internals, public assets, auth pages, and NextAuth endpoints.
   matcher: [
     "/",
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.json|sitemap.xml|icons/|api/auth|api/healthcheck|auth/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.json|sitemap.xml|healthcheck.txt|icons/|api/auth|api/healthcheck|auth/).*)",
   ],
 };

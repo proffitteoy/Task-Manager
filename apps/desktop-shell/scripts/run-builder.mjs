@@ -322,7 +322,7 @@ function canReuseHomepageRuntime(source, destination) {
 function verifyHomepageHealthcheckBypass(runtime) {
   if (!hasHomepageHealthcheckBypass(runtime)) {
     throw new Error(
-      "Homepage standalone middleware still intercepts /api/healthcheck. Rebuild Homepage before packaging."
+      "Homepage standalone middleware still intercepts /healthcheck.txt. Rebuild Homepage before packaging."
     );
   }
 }
@@ -336,7 +336,7 @@ function hasHomepageHealthcheckBypass(runtime) {
     "server",
     "middleware-manifest.json"
   );
-  return existsSync(manifest) && readFileSync(manifest, "utf8").includes("api/healthcheck");
+  return existsSync(manifest) && readFileSync(manifest, "utf8").includes("healthcheck.txt");
 }
 
 function listPackages(nodeModules) {
@@ -523,6 +523,10 @@ function verifyPackagedHomepageRuntime() {
   );
   if (!existsSync(helperPackage)) {
     throw new Error(`Packaged Homepage runtime does not contain ${helperPackage}`);
+  }
+  const healthcheckFile = join(packagedHomepage, "apps", "homepage", "public", "healthcheck.txt");
+  if (!existsSync(healthcheckFile) || readFileSync(healthcheckFile, "utf8").trim() !== "up") {
+    throw new Error(`Packaged Homepage runtime does not contain a valid ${healthcheckFile}`);
   }
   verifyHomepageHealthcheckBypass(packagedHomepage);
   const links = findSymbolicLinks(packagedHomepage);
