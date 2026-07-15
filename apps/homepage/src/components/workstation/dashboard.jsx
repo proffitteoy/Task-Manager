@@ -29,6 +29,8 @@ const ACTIVITY_MODES = [
   { id: "cumulative", label: "累计" },
 ];
 
+const DAILY_PLAN_MINUTES = 9 * 60;
+
 export default function WorkstationDashboard() {
   const { data, error, isLoading, mutate } = useSWR("/api/workstation/widgets/workstation", fetchJson, {
     refreshInterval: 8_000,
@@ -44,6 +46,11 @@ export default function WorkstationDashboard() {
   const [tick, setTick] = useState(() => Date.now());
 
   const tasks = data?.tasks ?? [];
+  const currentDate = todayKey();
+  const todayTasks = useMemo(
+    () => tasks.filter((task) => !task.plannedDate || task.plannedDate === currentDate),
+    [currentDate, tasks]
+  );
   const projects = data?.projects ?? [];
   const timer = data?.timer ?? { running: false, paused: false };
   const summary = data?.summary ?? {};
@@ -85,15 +92,15 @@ export default function WorkstationDashboard() {
 
   const taskStats = useMemo(() => {
     const stats = { todo: 0, doing: 0, done: 0, blocked: 0 };
-    for (const task of tasks) {
+    for (const task of todayTasks) {
       if (task.status in stats) stats[task.status] += 1;
     }
     return stats;
-  }, [tasks]);
+  }, [todayTasks]);
 
   const activeTask = tasks.find((task) => task.id === timer.session?.taskId);
   const activeProject = projects.find((project) => project.id === timer.session?.projectId);
-  const nextTask = tasks.find((task) => task.status === "doing") ?? tasks.find((task) => task.status === "todo");
+  const nextTask = todayTasks.find((task) => task.status === "doing") ?? todayTasks.find((task) => task.status === "todo");
   const elapsedMinutes = timer.session ? sessionMinutes(timer.session, tick) : 0;
 
   async function run(label, action, doneMessage) {
@@ -188,7 +195,7 @@ export default function WorkstationDashboard() {
           taskTitle={taskTitle}
           taskProjectId={taskProjectId}
           taskTags={taskTags}
-          tasks={tasks}
+          tasks={todayTasks}
           timer={timer}
           onCreateTask={createTask}
           onStartFocus={startFocus}
@@ -210,7 +217,7 @@ export default function WorkstationDashboard() {
           projects={projects}
           settings={settings}
           summary={summary}
-          tasks={tasks}
+          tasks={todayTasks}
           timer={timer}
           onPauseOrResume={pauseOrResume}
           onStartProjectFocus={startProjectFocus}
@@ -441,52 +448,115 @@ function TaskRow({ busy, projects, task, timer, onDeleteTask, onStartFocus, onUp
 function TimerPanel({ activeTask, activeProject, busy, elapsedMinutes, projects, settings, summary, tasks, timer, onPauseOrResume, onStartProjectFocus, onStartFocus, onStopFocus }) {
   const preferences = settings.tasks?.projectPreferences ?? [];
   const minutesByProject = new Map((summary.topProjects ?? []).map((item) => [item.projectId, Number(item.minutes ?? 0)]));
+  const totalFocusMinutes = projects.reduce((total, project) => total + (minutesByProject.get(project.id) ?? 0), 0);
+  const completedTasks = tasks.filter((task) => task.status === "done").length;
+  const planProgress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
   return (
-    <article className="workstation-panel workstation-timer-panel workstation-panel-tall workstation-panel-wide">
-      <PanelHeader title="分板块弹性计时" />
-      <div className="workstation-timer-face">
-        <span>{timer.session ? (timer.paused ? "已暂停" : "专注中") : "未启动"}</span>
-        <strong>{formatMinutes(elapsedMinutes)}</strong>
-        <small>{activeTask?.title ?? activeProject?.name ?? "选择一个任务或板块开始"}</small>
-      </div>
-      {timer.breakReminder?.level && timer.breakReminder.level !== "none" ? (
-        <div className="workstation-inline-notice" role="status">
-          <strong>{timer.breakReminder.level === "hard" ? "该休息了" : "休息提醒"}</strong>
-          <span>{timer.breakReminder.message}</span>
+    <div className="workstation-timer-ledger">
+      <section className="workstation-timer-portfolio">
+        <header className="workstation-timer-heading">
+          <div>
+            <h2>今日分类计划</h2>
+            <p>每个分类可设置任务并独立计时</p>
+          </div>
+          <div>
+            <span>基础计划完成度</span>
+            <strong>{planProgress}%</strong>
+          </div>
+        </header>
+
+        <article className="workstation-allocation-card">
+          <header><strong>时间配比</strong><span>9h 日计划 · 已分配 {preferences.reduce((total, item) => total + Number(item.allocationPercent ?? 0), 0)}%</span></header>
+          <div>
+            {projects.map((project) => {
+              const preference = preferences.find((item) => item.id === project.id);
+              return (
+                <span key={project.id} title={`${project.name} ${preference?.allocationPercent ?? 0}%`}>
+                  <i style={{ background: project.color ?? "#475467" }} />
+                  <b>{project.name}</b>
+                  <em>{preference?.allocationPercent ?? 0}%</em>
+                </span>
+              );
+            })}
+          </div>
+        </article>
+
+        <div className="workstation-project-ledger">
+          {projects.map((project, index) => {
+            const preference = preferences.find((item) => item.id === project.id);
+            const projectTasks = tasks.filter((task) => task.projectId === project.id);
+            const openTasks = projectTasks.filter((task) => task.status !== "done");
+            const investedMinutes = minutesByProject.get(project.id) ?? 0;
+            const allocationPercent = Number(preference?.allocationPercent ?? 0);
+            const targetMinutes = Math.max(1, Math.round(DAILY_PLAN_MINUTES * allocationPercent / 100));
+            const progress = Math.min(100, Math.round((investedMinutes / targetMinutes) * 100));
+            const isTiming = timer.session?.projectId === project.id;
+            return (
+              <article className={isTiming ? "is-timing" : ""} key={project.id} style={{ "--project-color": project.color ?? "#475467" }}>
+                <i className="workstation-project-ledger-accent" />
+                <header>
+                  <div>
+                    <p><span>{String(index + 1).padStart(2, "0")}</span><em>分类计时</em>{isTiming ? <b>● 计时中</b> : null}</p>
+                    <h3>{project.icon} {project.name}</h3>
+                    <small>{preference?.description ?? "本地任务板块"}</small>
+                  </div>
+                  <div className="workstation-project-invested">
+                    <span>今日</span>
+                    <strong>{formatTimerHours(investedMinutes)}</strong>
+                    <small>/ {formatTimerHours(targetMinutes)} · 配比 {allocationPercent}%</small>
+                  </div>
+                </header>
+                <div className="workstation-project-task-summary">
+                  <div><span>今日任务</span><strong>{projectTasks.length === 0 ? "暂无任务" : `${projectTasks.length - openTasks.length}/${projectTasks.length} 已完成`}</strong></div>
+                  <button disabled={Boolean(timer.session || busy)} onClick={() => openTasks[0] ? onStartFocus(openTasks[0].id) : onStartProjectFocus(project.id)} type="button">
+                    {openTasks[0] ? "开始下一项" : "开始计时"}
+                  </button>
+                </div>
+                <ul>
+                  {projectTasks.slice(0, 4).map((task) => <li className={task.status === "done" ? "is-done" : ""} key={task.id}><i />{task.title}</li>)}
+                  {projectTasks.length === 0 ? <li className="is-empty">可在“日程计划”中添加{project.name}任务</li> : null}
+                </ul>
+                <div className="workstation-project-progress"><i style={{ width: `${progress}%` }} /></div>
+                <footer><span>{progress}% 今日配额</span><span>{openTasks.length} 项待推进</span></footer>
+              </article>
+            );
+          })}
         </div>
-      ) : null}
-      <div className="workstation-actions">
-        {timer.session ? (
-          <>
-            <button disabled={busy === "timer"} onClick={onPauseOrResume} type="button">
-              {timer.paused ? "继续" : "暂停"}
-            </button>
-            <button disabled={busy === "timer"} onClick={onStopFocus} type="button">
-              结束
-            </button>
-          </>
-        ) : (
-          <button disabled={busy === "timer"} onClick={() => onStartFocus()} type="button">无板块计时</button>
-        )}
-      </div>
-      <div className="workstation-project-grid">
-        {projects.map((project) => {
-          const preference = preferences.find((item) => item.id === project.id);
-          const projectTasks = tasks.filter((task) => task.projectId === project.id && task.status !== "done");
-          return (
-            <article key={project.id} style={{ "--project-color": project.color ?? "#475467" }}>
-              <header><span>{project.icon}</span><strong>{project.name}</strong><em>{preference?.allocationPercent ?? 0}%</em></header>
-              <p>{preference?.description ?? "本地任务板块"}</p>
-              <div><span>今日 {formatMinutes(minutesByProject.get(project.id))}</span><span>{projectTasks.length} 项待推进</span></div>
-              <div className="workstation-project-actions">
-                {projectTasks[0] ? <button disabled={Boolean(timer.session || busy)} onClick={() => onStartFocus(projectTasks[0].id)} type="button">开始下一项</button> : null}
-                <button disabled={Boolean(timer.session || busy)} onClick={() => onStartProjectFocus(project.id)} type="button">按板块计时</button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </article>
+      </section>
+
+      <aside className="workstation-timer-sidebar">
+        <article className={`workstation-focus-dock ${timer.session ? "is-active" : ""}`}>
+          <header><i /><span>{timer.session ? (timer.paused ? "专注已暂停" : "专注进行中") : "等待开始"}</span><b>{activeProject?.name ?? "弹性计时"}</b></header>
+          <p>{activeTask?.title ?? activeProject?.name ?? "从左侧分类选择任务并开始计时"}</p>
+          <span>本轮</span>
+          <strong>{formatElapsedTimer(elapsedMinutes)}</strong>
+          <small>今日累计 {formatMinutes(totalFocusMinutes)}</small>
+          {timer.breakReminder?.level && timer.breakReminder.level !== "none" ? (
+            <div className="workstation-inline-notice" role="status"><strong>{timer.breakReminder.level === "hard" ? "该休息了" : "休息提醒"}</strong><span>{timer.breakReminder.message}</span></div>
+          ) : null}
+          <div>
+            {timer.session ? (
+              <><button disabled={busy === "timer"} onClick={onPauseOrResume} type="button">{timer.paused ? "继续" : "暂停"}</button><button disabled={busy === "timer"} onClick={onStopFocus} type="button">结束本轮</button></>
+            ) : <button disabled={busy === "timer"} onClick={() => onStartFocus()} type="button">无分类计时</button>}
+          </div>
+        </article>
+
+        <article className="workstation-timer-agenda">
+          <header><h3>今日时间安排</h3><span>按分类执行</span></header>
+          <ol>
+            {projects.map((project) => {
+              const preference = preferences.find((item) => item.id === project.id);
+              const projectTasks = tasks.filter((task) => task.projectId === project.id && task.status !== "done");
+              return (
+                <li key={project.id} style={{ "--project-color": project.color ?? "#475467" }}>
+                  <i /><span>{preference?.allocationPercent ?? 0}% 配额</span><strong>{project.name}</strong><small>{projectTasks[0]?.title ?? "暂无待办，可直接按分类计时"}</small>
+                </li>
+              );
+            })}
+          </ol>
+        </article>
+      </aside>
+    </div>
   );
 }
 
@@ -1009,7 +1079,19 @@ function formatCompact(value) {
 }
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateKey(new Date());
+}
+
+function formatTimerHours(minutes) {
+  const value = Math.max(0, Number(minutes ?? 0)) / 60;
+  return `${value.toFixed(value >= 10 ? 0 : 1)}h`;
+}
+
+function formatElapsedTimer(minutes) {
+  const totalSeconds = Math.max(0, Math.round(Number(minutes ?? 0) * 60));
+  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+  const mins = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+  return `${hours}:${mins}`;
 }
 
 function localDateKey(date) {

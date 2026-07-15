@@ -58,6 +58,19 @@ export class WorkbenchRepository {
     return (this.sqlite.prepare("SELECT * FROM tasks ORDER BY created_at DESC").all() as Row[]).map(mapTask);
   }
 
+  carryOverIncompleteTasks(plannedDate: string): number {
+    const result = this.sqlite
+      .prepare(
+        `UPDATE tasks
+         SET planned_date = ?, updated_at = ?
+         WHERE planned_date IS NOT NULL
+           AND planned_date < ?
+           AND status IN ('todo', 'doing', 'blocked')`
+      )
+      .run(plannedDate, new Date().toISOString(), plannedDate);
+    return result.changes;
+  }
+
   getTask(id: string): WorkTask | undefined {
     const row = this.sqlite.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as Row | undefined;
     return row ? mapTask(row) : undefined;
@@ -882,7 +895,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 export function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function nextDate(date: string): string {

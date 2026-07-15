@@ -7,32 +7,32 @@
 
 本地优先的科研开发全流程记录工作站。它把任务规划、分板块弹性计时、开发活动统计、电脑资源监控、音乐和每日复盘放在一个可自托管界面中，帮助研究者与开发者留下连续、可追溯的工作记录。
 
-![科研开发工作站预览](./docs/assets/preview-cover.svg)
+![科研开发工作站预览](./docs/assets/preview-home.png)
 
-> `1.0.0` 是首个正式发布版本。核心任务、计时与设置数据默认写入本地 SQLite；外部数据源均可选，发行版本不预置维护者的账号、绝对路径或私人歌单。
+> `1.1.0` 是当前发布版本。核心任务、计时与设置数据默认写入本地 SQLite；外部数据源均可选，发行版本不预置维护者的账号、绝对路径或私人歌单。
 
 ## 界面预览
 
 <table>
   <tr>
-    <td width="50%"><img src="./docs/assets/preview-planner.svg" alt="日程与分板块计时预览" /></td>
-    <td width="50%"><img src="./docs/assets/preview-development.svg" alt="开发统计预览" /></td>
+    <td width="50%"><img src="./docs/assets/preview-home.png" alt="首页与今日概览" /></td>
+    <td width="50%"><img src="./docs/assets/preview-development.png" alt="开发统计预览" /></td>
   </tr>
   <tr>
-    <td align="center"><strong>日程与分板块计时</strong></td>
+    <td align="center"><strong>首页与今日概览</strong></td>
     <td align="center"><strong>开发统计</strong></td>
   </tr>
   <tr>
-    <td width="50%"><img src="./docs/assets/preview-activity.svg" alt="电脑活动预览" /></td>
-    <td width="50%"><img src="./docs/assets/preview-music-review.svg" alt="音乐与复盘预览" /></td>
+    <td width="50%"><img src="./docs/assets/preview-activity.png" alt="电脑活动预览" /></td>
+    <td width="50%"><img src="./docs/assets/preview-music.png" alt="音乐播放预览" /></td>
   </tr>
   <tr>
-    <td align="center"><strong>电脑活动与系统资源</strong></td>
-    <td align="center"><strong>音乐与每日复盘</strong></td>
+    <td align="center"><strong>电脑活动</strong></td>
+    <td align="center"><strong>音乐播放</strong></td>
   </tr>
 </table>
 
-这些 SVG 是可直接替换的预览位。发布截图准备完成后，保持文件名不变即可更新 README 中的整组图片。
+以上截图展示首页概览、开发统计、电脑活动与音乐播放等核心界面。
 
 ## 核心能力
 
@@ -41,7 +41,7 @@
 - 弹性计时：支持任务计时、按板块计时、暂停、继续、结束、手动拆分和调整记录；默认策略为弹性 50 + 10。
 - 开发统计：展示今日 Token、今日提交、累计 Token、累计提交，以及 Token / GitHub 活动热力图。
 - 电脑活动：只读聚合 ActivityWatch 的应用、窗口、网页域名与当天时间线，同时实时采样 CPU、内存、GPU、显存与可用温度指标。
-- 音乐：统一的独立页与嵌入式播放器，歌词和播放列表在固定区域内滚动。
+- 音乐：直接集成在工作站音乐面板中，播放控制、歌词和播放列表都限制在固定卡片区域内。
 - 每日复盘：聚合任务、专注记录、开发统计和音乐状态，形成可回看的日记录。
 - 可选 ActivityWatch：仍可作为专注证据来源，但不影响任务、计时和资源监控的基础功能。
 
@@ -68,7 +68,7 @@ Homepage 负责展示与编排，`workbench-core` 负责状态与规则。复杂
 
 ## 快速开始
 
-Windows 用户可直接下载 [ResearchWorkstation 1.0.0 安装包](https://github.com/proffitteoy/Task-Manager/releases/download/v1.0.0/ResearchWorkstation-1.0.0-x64.exe)。
+Windows 用户可直接下载 [ResearchWorkstation 1.1.0 安装包](https://github.com/proffitteoy/Task-Manager/releases/download/v1.1.0/ResearchWorkstation-1.1.0-x64.exe)。
 
 要求：Node.js 20 或更高版本、pnpm 11。
 

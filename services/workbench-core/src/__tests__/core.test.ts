@@ -109,6 +109,35 @@ describe("workbench-core MVP", () => {
     expect(review.json().review.tasks.total).toBeGreaterThan(0);
   });
 
+  it("carries unfinished planned tasks into the current day", async () => {
+    const previousTodo = await workbench.app.inject({
+      method: "POST",
+      url: "/api/tasks",
+      payload: { title: "昨天未完成", status: "todo", plannedDate: "2000-01-01" }
+    });
+    const previousDone = await workbench.app.inject({
+      method: "POST",
+      url: "/api/tasks",
+      payload: { title: "昨天已完成", status: "done", plannedDate: "2000-01-01" }
+    });
+
+    const dashboard = await workbench.app.inject("/api/widgets/workstation");
+    expect(dashboard.statusCode).toBe(200);
+
+    const tasks = (await workbench.app.inject("/api/tasks")).json().tasks as Array<{
+      id: string;
+      plannedDate?: string;
+    }>;
+    const currentDate = new Intl.DateTimeFormat("en-CA", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date());
+
+    expect(tasks.find((task) => task.id === previousTodo.json().task.id)?.plannedDate).toBe(currentDate);
+    expect(tasks.find((task) => task.id === previousDone.json().task.id)?.plannedDate).toBe("2000-01-01");
+  });
+
   it("supports mock music controls", async () => {
     const clearedPlaylist = await workbench.app.inject({
       method: "PATCH",

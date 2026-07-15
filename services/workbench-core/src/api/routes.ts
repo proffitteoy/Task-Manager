@@ -19,7 +19,7 @@ export interface RouteContext {
 }
 
 export async function registerRoutes(app: FastifyInstance, context: RouteContext): Promise<void> {
-  app.get("/health", async () => ({ ok: true, version: "1.0.0" }));
+  app.get("/health", async () => ({ ok: true, version: "1.1.0" }));
 
   app.get("/api/workstation/status", async () => workstationStatus(context));
   app.get("/api/widgets/workstation", async () => widgetsPayload(context));
@@ -327,7 +327,7 @@ function workstationStatus(context: RouteContext): WorkstationStatus {
     mode: settings.defaultMode,
     core: {
       ok: true,
-      version: "1.0.0",
+      version: "1.1.0",
       databasePath: context.config.databasePath
     },
     modules: {
@@ -343,6 +343,7 @@ function workstationStatus(context: RouteContext): WorkstationStatus {
 
 async function widgetsPayload(context: RouteContext): Promise<Record<string, unknown>> {
   const date = today();
+  context.repository.carryOverIncompleteTasks(date);
   const [activity, music, summary] = await Promise.all([
     activityWatchCurrent(context),
     context.music.current(context.repository.getWorkstationSettings().music),
@@ -357,7 +358,7 @@ async function widgetsPayload(context: RouteContext): Promise<Record<string, unk
     activity,
     music,
     summary,
-    review: context.repository.getDailyReview(today()),
+    review: context.repository.getDailyReview(date),
     settings: context.repository.getWorkstationSettings(),
     widgetSettings: context.repository.listWidgetSettings()
   };

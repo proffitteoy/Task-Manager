@@ -352,37 +352,62 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
             volume={isMuted ? 0 : volume || 0}
           />
 
-          <div className={`relative z-10 flex h-full flex-col justify-between p-5 sm:p-7 md:p-8 ${embedded ? "min-h-0" : "min-h-[640px]"}`}>
+          <div
+            className={`relative z-10 flex h-full flex-col justify-between ${
+              embedded ? "min-h-0 p-4 sm:p-5 md:p-6" : "min-h-[640px] p-5 sm:p-7 md:p-8"
+            }`}
+          >
             <div className="flex items-center justify-between gap-3">
-              <p className="rounded-full border border-white/60 bg-white/75 px-4 py-2 text-sm font-bold text-slate-600 shadow-sm backdrop-blur-xl">
+              <p
+                className={`rounded-full border border-white/60 bg-white/75 font-bold text-slate-600 shadow-sm backdrop-blur-xl ${
+                  embedded ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"
+                }`}
+              >
                 {playModeLabel}
               </p>
-              <p className="rounded-full border border-white/60 bg-white/75 px-4 py-2 text-sm font-bold text-slate-600 shadow-sm backdrop-blur-xl">
+              <p
+                className={`rounded-full border border-white/60 bg-white/75 font-bold text-slate-600 shadow-sm backdrop-blur-xl ${
+                  embedded ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"
+                }`}
+              >
                 {currentIndex + 1} / {playlist.length}
               </p>
             </div>
 
-            <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center py-8">
-              <div className="relative aspect-square w-[min(70vw,340px)]">
+            <div className={`mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center ${embedded ? "min-h-0 py-3" : "py-8"}`}>
+              <div className={`relative aspect-square ${embedded ? "w-[min(68vw,230px)]" : "w-[min(70vw,340px)]"}`}>
                 <div className="relative h-full w-full overflow-hidden rounded-3xl border border-white/60 bg-white/60 shadow-xl">
                   <img alt={`${getTitle(currentSong)} 封面`} className="h-full w-full object-cover" referrerPolicy="no-referrer" src={getCover(currentSong)} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-white/10" />
                 </div>
               </div>
 
-              <div className="mt-8 w-full text-center">
-                <h2 className="mx-auto max-w-3xl text-balance text-3xl font-black text-slate-900 sm:text-4xl md:text-5xl">{getTitle(currentSong)}</h2>
-                <p className="mt-3 text-sm font-bold text-slate-600">{getArtist(currentSong)}</p>
+              <div className={`${embedded ? "mt-4" : "mt-8"} w-full text-center`}>
+                <h2
+                  className={`mx-auto max-w-3xl text-balance font-black text-slate-900 ${
+                    embedded ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl md:text-5xl"
+                  }`}
+                >
+                  {getTitle(currentSong)}
+                </h2>
+                <p className={`${embedded ? "mt-1.5" : "mt-3"} text-sm font-bold text-slate-600`}>{getArtist(currentSong)}</p>
               </div>
 
-              <div className="relative mt-8 flex h-16 w-full max-w-lg items-end justify-center gap-1.5 overflow-hidden rounded-full border border-white/60 bg-white/55 px-5 pb-3 shadow-inner" aria-hidden="true">
-                <div className="absolute inset-x-8 top-4 h-px bg-gradient-to-r from-transparent via-indigo-300/40 to-transparent" />
+              <div
+                className={`relative flex w-full max-w-lg items-end justify-center overflow-hidden rounded-full border border-white/60 bg-white/55 shadow-inner ${
+                  embedded ? "mt-4 h-11 gap-1 px-4 pb-2" : "mt-8 h-16 gap-1.5 px-5 pb-3"
+                }`}
+                aria-hidden="true"
+              >
+                <div className={`absolute inset-x-8 h-px bg-gradient-to-r from-transparent via-indigo-300/40 to-transparent ${embedded ? "top-2.5" : "top-4"}`} />
                 {Array.from({ length: 28 }).map((_, index) => (
                   <span
                     key={index}
-                    className={`w-1.5 rounded-full bg-gradient-to-t from-indigo-500 via-sky-400 to-pink-400 shadow-[0_0_16px_rgba(99,102,241,0.24)] ${isPlaying ? "workstation-radio-wave" : ""}`}
+                    className={`${embedded ? "w-1" : "w-1.5"} rounded-full bg-gradient-to-t from-indigo-500 via-sky-400 to-pink-400 shadow-[0_0_16px_rgba(99,102,241,0.24)] ${
+                      isPlaying ? "workstation-radio-wave" : ""
+                    }`}
                     style={{
-                      height: `${14 + ((index * 13) % 36)}px`,
+                      height: `${embedded ? 9 + ((index * 13) % 25) : 14 + ((index * 13) % 36)}px`,
                       animationDelay: `${index * 70}ms`,
                     }}
                   />
@@ -390,9 +415,9 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/60 bg-white/70 p-4 shadow-xl backdrop-blur-xl">
-              <div className="mb-4 flex items-center gap-3">
-                <span className="w-12 text-right text-xs font-black tabular-nums text-slate-500">{formatTime(currentTime)}</span>
+            <div className={`${embedded ? "rounded-2xl p-3" : "rounded-3xl p-4"} border border-white/60 bg-white/70 shadow-xl backdrop-blur-xl`}>
+              <div className={`${embedded ? "mb-3" : "mb-4"} flex items-center gap-3`}>
+                <span className={`${embedded ? "w-10" : "w-12"} text-right text-xs font-black tabular-nums text-slate-500`}>{formatTime(currentTime)}</span>
                 <input
                   aria-label="播放进度"
                   className="h-2 flex-1 cursor-pointer appearance-none rounded-full"
@@ -403,7 +428,7 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
                   type="range"
                   value={progress || 0}
                 />
-                <span className="w-12 text-xs font-black tabular-nums text-slate-500">{formatTime(duration)}</span>
+                <span className={`${embedded ? "w-10" : "w-12"} text-xs font-black tabular-nums text-slate-500`}>{formatTime(duration)}</span>
               </div>
 
               <div className="flex items-center justify-between gap-3">
@@ -420,7 +445,7 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
                 <div className="flex items-center gap-3 sm:gap-5">
                   <button
                     aria-label="上一首"
-                    className="flex h-12 w-12 items-center justify-center rounded-full border border-white/60 bg-white/70 text-slate-700 transition hover:border-indigo-300 hover:text-indigo-600"
+                    className={`${embedded ? "h-10 w-10" : "h-12 w-12"} flex items-center justify-center rounded-full border border-white/60 bg-white/70 text-slate-700 transition hover:border-indigo-300 hover:text-indigo-600`}
                     onClick={prevSong}
                     type="button"
                   >
@@ -428,7 +453,7 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
                   </button>
                   <button
                     aria-label={isPlaying ? "暂停" : "播放"}
-                    className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 transition hover:scale-105 hover:bg-indigo-600"
+                    className={`${embedded ? "h-14 w-14" : "h-16 w-16"} flex items-center justify-center rounded-full bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 transition hover:scale-105 hover:bg-indigo-600`}
                     onClick={togglePlay}
                     type="button"
                   >
@@ -436,7 +461,7 @@ export default function WorkstationMusicPlayer({ embedded = false, showSettingsL
                   </button>
                   <button
                     aria-label="下一首"
-                    className="flex h-12 w-12 items-center justify-center rounded-full border border-white/60 bg-white/70 text-slate-700 transition hover:border-indigo-300 hover:text-indigo-600"
+                    className={`${embedded ? "h-10 w-10" : "h-12 w-12"} flex items-center justify-center rounded-full border border-white/60 bg-white/70 text-slate-700 transition hover:border-indigo-300 hover:text-indigo-600`}
                     onClick={nextSong}
                     type="button"
                   >

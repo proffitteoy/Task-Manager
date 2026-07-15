@@ -1,6 +1,6 @@
 {
   "name": "@cw/desktop-shell",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Chromium desktop shell for Research and Development Workstation",
   "author": "Research and Development Workstation Contributors",
