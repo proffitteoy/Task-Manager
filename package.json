@@ -1,6 +1,6 @@
 {
   "name": "research-workstation",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "license": "GPL-3.0-or-later",
   "packageManager": "pnpm@11.7.0",
@@ -11,7 +11,8 @@
     "build": "pnpm --filter @cw/contracts build && pnpm --filter @cw/workbench-core build && pnpm --filter homepage build",
     "build:docker": "docker compose -f deploy/docker-compose.yml build",
     "desktop:build": "pnpm --filter @cw/contracts build && pnpm --filter @cw/workbench-core build && pnpm --filter homepage build && pnpm --filter @cw/desktop-shell build",
-    "desktop:dev": "pnpm desktop:build && pnpm --filter @cw/desktop-shell dev",
+    "desktop:dev": "pnpm --filter @cw/contracts build && pnpm --filter @cw/desktop-shell dev:workspace",
+    "desktop:dev:built": "pnpm desktop:build && pnpm --filter @cw/desktop-shell dev",
     "desktop:pack": "pnpm desktop:build && pnpm --filter @cw/desktop-shell pack",
     "desktop:dist": "pnpm desktop:build && pnpm --filter @cw/desktop-shell dist",
     "test": "pnpm --filter @cw/workbench-core test && pnpm --filter homepage test",

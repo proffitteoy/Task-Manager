@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "preinstall": "npx only-allow pnpm",
+    "prebuild": "node scripts/assert-no-page-tests.js",
+    "check:page-routes": "node scripts/assert-no-page-tests.js",
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",

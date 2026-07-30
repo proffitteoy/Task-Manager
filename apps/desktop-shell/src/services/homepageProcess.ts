@@ -20,6 +20,7 @@ export async function startHomepageProcess(userData: string, coreUrl: string): P
     homepageRuntime = await connectExternalRuntime({
       healthUrl: configuredUrl.toString(),
       name: "外部 Homepage",
+      timeoutMs: 60_000,
       url: configuredUrl.origin
     });
     return homepageRuntime;

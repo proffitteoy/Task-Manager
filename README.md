@@ -9,7 +9,7 @@
 
 ![科研开发工作站预览](./docs/assets/preview-home.png)
 
-> `1.1.0` 是当前发布版本。核心任务、计时与设置数据默认写入本地 SQLite；外部数据源均可选，发行版本不预置维护者的账号、绝对路径或私人歌单。
+> `1.1.1` 是当前发布版本。核心任务、计时与设置数据默认写入本地 SQLite；外部数据源均可选，发行版本不预置维护者的账号、绝对路径或私人歌单。
 
 ## 界面预览
 
@@ -68,7 +68,7 @@ Homepage 负责展示与编排，`workbench-core` 负责状态与规则。复杂
 
 ## 快速开始
 
-Windows 用户可直接下载 [ResearchWorkstation 1.1.0 安装包](https://github.com/proffitteoy/Task-Manager/releases/download/v1.1.0/ResearchWorkstation-1.1.0-x64.exe)。
+Windows 用户可直接下载 [ResearchWorkstation 1.1.1 安装包](https://github.com/proffitteoy/Task-Manager/releases/download/v1.1.1/ResearchWorkstation-1.1.1-x64.exe)。
 
 要求：Node.js 20 或更高版本、pnpm 11。
 
@@ -121,9 +121,13 @@ pnpm --filter homepage build
 Windows 桌面包：
 
 ```bash
+pnpm desktop:dev
+pnpm desktop:dev:built
 pnpm desktop:pack
 pnpm desktop:dist
 ```
+
+`desktop:dev` 使用并行开发服务快速启动；`desktop:dev:built` 会先完成生产构建，适合打包前联调。ActivityWatch 是可选外部数据源，桌面包不会携带或自动启动其 server/watcher。
 
 Docker：
 

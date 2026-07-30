@@ -1,8 +1,16 @@
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import BlogBackground from "components/blog-background/BlogBackground";
-import WorkstationMusicPlayer from "components/workstation/music-player";
+
+const WorkstationMusicPlayer = dynamic(
+  () => import("components/workstation/music-player"),
+  {
+    loading: () => <div className="workstation-panel">正在加载音乐面板…</div>,
+    ssr: false,
+  }
+);
 
 const TABS = [
   { id: "overview", label: "首页" },
@@ -32,11 +40,23 @@ const ACTIVITY_MODES = [
 const DAILY_PLAN_MINUTES = 9 * 60;
 
 export default function WorkstationDashboard() {
-  const { data, error, isLoading, mutate } = useSWR("/api/workstation/widgets/workstation", fetchJson, {
-    refreshInterval: 8_000,
-  });
-  const { data: resources } = useSWR("/api/workstation/system-resources", fetchJson, { refreshInterval: 3_000 });
   const [activeTab, setActiveTab] = useState("overview");
+  const pageVisible = usePageVisibility();
+  const { data, error, isLoading, mutate } = useSWR("/api/workstation/widgets/workstation", fetchJson, {
+    refreshInterval: pageVisible ? 30_000 : 0,
+    refreshWhenHidden: false,
+    refreshWhenOffline: false,
+    isPaused: () => !pageVisible,
+  });
+  const { data: resources } = useSWR(
+    activeTab === "activity" && pageVisible ? "/api/workstation/system-resources" : null,
+    fetchJson,
+    {
+      refreshInterval: 15_000,
+      refreshWhenHidden: false,
+      refreshWhenOffline: false,
+    }
+  );
   const [taskTitle, setTaskTitle] = useState("");
   const [taskProjectId, setTaskProjectId] = useState("");
   const [taskTags, setTaskTags] = useState("");
@@ -76,10 +96,11 @@ export default function WorkstationDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!timer.session) return undefined;
+    if (!timer.session || !pageVisible) return undefined;
+    setTick(Date.now());
     const id = window.setInterval(() => setTick(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [timer.session]);
+  }, [pageVisible, timer.session]);
 
   useEffect(() => {
     if (!resources?.fetchedAt) return;
@@ -292,7 +313,7 @@ return (
           id={`workstation-panel-${activeTab}`}
           role="tabpanel"
         >
-          <div className={activeTab === "overview" ? "" : "hidden"}>
+          {activeTab === "overview" ? (
             <OverviewPanel
               busy={busy}
               elapsedMinutes={elapsedMinutes}
@@ -302,12 +323,7 @@ return (
               onSelectTab={selectTab}
               onStartFocus={startFocus}
             />
-          </div>
-          {Object.entries(panels).map(([tabId, content]) => (
-            <div key={tabId} className={activeTab === tabId ? "" : "hidden"}>
-              {content}
-            </div>
-          ))}
+          ) : panels[activeTab] ?? null}
         </section>
 
         <footer className="workstation-footer">
@@ -1105,6 +1121,19 @@ function initialTab() {
   if (typeof window === "undefined") return "overview";
   const tab = String(window.location?.hash ?? "").replace(/^#/, "");
   return TAB_IDS.has(tab) ? tab : "overview";
+}
+
+function usePageVisibility() {
+  const [visible, setVisible] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
+
+  useEffect(() => {
+    const updateVisibility = () => setVisible(document.visibilityState !== "hidden");
+    updateVisibility();
+    document.addEventListener("visibilitychange", updateVisibility);
+    return () => document.removeEventListener("visibilitychange", updateVisibility);
+  }, []);
+
+  return visible;
 }
 
 function errorMessage(error) {

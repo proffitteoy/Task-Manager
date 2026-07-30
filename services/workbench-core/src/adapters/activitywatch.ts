@@ -7,11 +7,63 @@ interface ActivityWatchEvent {
 }
 
 export class ActivityWatchAdapter {
+  private readonly cache = new Map<
+    string,
+    { expiresAt: number; pending?: Promise<Record<string, unknown>>; value?: Record<string, unknown> }
+  >();
+
   constructor(private readonly config: WorkbenchConfig) {}
 
   async current(baseUrl = this.config.activityWatchUrl): Promise<Record<string, unknown>> {
+    return this.cached(`current:${baseUrl}`, 5_000, () => this.loadCurrent(baseUrl));
+  }
+
+  async today(baseUrl = this.config.activityWatchUrl): Promise<Record<string, unknown>> {
+    return this.cached(`today:${baseUrl}`, 30_000, () => this.loadToday(baseUrl));
+  }
+
+  async summary(baseUrl = this.config.activityWatchUrl): Promise<Record<string, unknown>> {
+    return this.cached(`summary:${baseUrl}`, 30_000, async () => {
+      try {
+        const buckets = await this.fetchBuckets(baseUrl);
+        const [current, today] = await Promise.all([
+          this.loadCurrent(baseUrl, buckets),
+          this.loadToday(baseUrl, buckets)
+        ]);
+        return this.buildSummary(current, today);
+      } catch (error) {
+        return {
+          connected: false,
+          date: new Date().toISOString().slice(0, 10),
+          trackedMinutes: 0,
+          topApps: [],
+          topWindows: [],
+          topDomains: [],
+          hourlyActivity: Array.from({ length: 24 }, (_, hour) => ({ hour, minutes: 0 })),
+          timeline: [],
+          afkMinutes: 0,
+          current: {
+            connected: false,
+            baseUrl,
+            error: errorMessage(error),
+            fetchedAt: new Date().toISOString()
+          },
+          error: errorMessage(error)
+        };
+      }
+    });
+  }
+
+  resetCache(): void {
+    this.cache.clear();
+  }
+
+  private async loadCurrent(
+    baseUrl: string,
+    prefetchedBuckets?: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
     try {
-      const buckets = await this.fetchBuckets(baseUrl);
+      const buckets = prefetchedBuckets ?? await this.fetchBuckets(baseUrl);
       const windowBucket = findBucket(buckets, "aw-watcher-window");
       const afkBucket = findBucket(buckets, "aw-watcher-afk");
       const [windowEvent, afkEvent] = await Promise.all([
@@ -36,9 +88,12 @@ export class ActivityWatchAdapter {
     }
   }
 
-  async today(baseUrl = this.config.activityWatchUrl): Promise<Record<string, unknown>> {
+  private async loadToday(
+    baseUrl: string,
+    prefetchedBuckets?: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
     try {
-      const buckets = await this.fetchBuckets(baseUrl);
+      const buckets = prefetchedBuckets ?? await this.fetchBuckets(baseUrl);
       const windowBucket = findBucket(buckets, "aw-watcher-window");
       const afkBucket = findBucket(buckets, "aw-watcher-afk");
       const webBuckets = findBuckets(buckets, "aw-watcher-web");
@@ -75,8 +130,10 @@ export class ActivityWatchAdapter {
     }
   }
 
-  async summary(baseUrl = this.config.activityWatchUrl): Promise<Record<string, unknown>> {
-    const [current, today] = await Promise.all([this.current(baseUrl), this.today(baseUrl)]);
+  private buildSummary(
+    current: Record<string, unknown>,
+    today: Record<string, unknown>
+  ): Record<string, unknown> {
     const streams = isObject(today.streams) ? today.streams : {};
     const windowEvents = eventList(streams.window);
     const afkEvents = eventList(streams.afk);
@@ -137,6 +194,40 @@ export class ActivityWatchAdapter {
       current,
       error: current.connected === false ? current.error : today.connected === false ? today.error : undefined
     };
+  }
+
+  private cached(
+    key: string,
+    ttlMs: number,
+    load: () => Promise<Record<string, unknown>>
+  ): Promise<Record<string, unknown>> {
+    const now = Date.now();
+    const existing = this.cache.get(key);
+    if (existing?.value && existing.expiresAt > now) {
+      return Promise.resolve(existing.value);
+    }
+    if (existing?.pending) {
+      return existing.pending;
+    }
+
+    let pending: Promise<Record<string, unknown>>;
+    pending = load().then((value) => {
+      if (this.cache.get(key)?.pending === pending) {
+        this.cache.set(key, { expiresAt: Date.now() + ttlMs, value });
+      }
+      return value;
+    }).catch((error) => {
+      if (this.cache.get(key)?.pending === pending) {
+        this.cache.delete(key);
+      }
+      throw error;
+    });
+    this.cache.set(key, {
+      expiresAt: existing?.expiresAt ?? 0,
+      pending,
+      value: existing?.value
+    });
+    return pending;
   }
 
   private async fetchBuckets(baseUrl: string): Promise<Record<string, unknown>> {

@@ -4,6 +4,8 @@ import type { WorkbenchConfig } from "../config.js";
 import type { WorkbenchRepository } from "../modules/repository.js";
 import { fetchNeteaseSongsByIds, searchNeteaseSongs } from "./mineradio.js";
 
+const MUSIC_REQUEST_TIMEOUT_MS = 3_000;
+
 type MusicOptions = {
   enabled?: boolean;
   provider?: string;
@@ -27,7 +29,9 @@ export class MusicAdapter {
     const serviceUrl = options.serviceUrl || this.config.musicServiceUrl;
     if (serviceUrl && options.provider !== "mock") {
       try {
-        const response = await fetch(`${serviceUrl}/api/music/current`);
+        const response = await fetch(`${serviceUrl}/api/music/current`, {
+          signal: AbortSignal.timeout(MUSIC_REQUEST_TIMEOUT_MS)
+        });
         if (response.ok) {
           const remote = (await response.json()) as MusicState;
           return { ...remote, connected: true, provider: "remote", serviceUrl };
@@ -117,7 +121,9 @@ export class MusicAdapter {
     const serviceUrl = options.serviceUrl || this.config.musicServiceUrl;
     if (serviceUrl && options.provider !== "mock") {
       try {
-        const response = await fetch(`${serviceUrl}/api/music/search?q=${encodeURIComponent(query)}`);
+        const response = await fetch(`${serviceUrl}/api/music/search?q=${encodeURIComponent(query)}`, {
+          signal: AbortSignal.timeout(MUSIC_REQUEST_TIMEOUT_MS)
+        });
         if (response.ok) {
           const payload = (await response.json()) as { results?: MusicTrack[] };
           return { provider: "remote", results: payload.results ?? [] };

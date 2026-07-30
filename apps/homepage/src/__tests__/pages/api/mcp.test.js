@@ -32,7 +32,7 @@ function mockResponse() {
 
 async function loadHandler() {
   vi.resetModules();
-  return (await import("./index")).default;
+  return (await import("pages/api/mcp")).default;
 }
 
 describe("pages/api/mcp", () => {

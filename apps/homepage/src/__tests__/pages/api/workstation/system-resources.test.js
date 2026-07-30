@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import createMockRes from "test-utils/create-mock-res";
 
@@ -15,7 +15,16 @@ vi.mock("systeminformation", () => ({ default: si }));
 import handler from "pages/api/workstation/system-resources";
 
 describe("workstation system resources", () => {
-  beforeEach(() => vi.clearAllMocks());
+  let now = Date.UTC(2026, 0, 1);
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    now += 60_000;
+    vi.setSystemTime(now);
+    vi.clearAllMocks();
+  });
+
+  afterAll(() => vi.useRealTimers());
 
   it("returns CPU, memory and the primary GPU", async () => {
     si.currentLoad.mockResolvedValue({ currentLoad: 12, currentLoadUser: 8, currentLoadSystem: 4 });
@@ -35,6 +44,30 @@ describe("workstation system resources", () => {
     expect(res.body.memory.usagePercent).toBe(60);
     expect(res.body.gpu.model).toBe("Discrete");
     expect(res.body.gpu.usagePercent).toBe(75);
+  });
+
+  it("reuses a recent sample and coalesces concurrent probes", async () => {
+    si.currentLoad.mockResolvedValue({ currentLoad: 12 });
+    si.mem.mockResolvedValue({ active: 60, total: 100 });
+    si.graphics.mockResolvedValue({ controllers: [] });
+
+    const first = createMockRes();
+    const second = createMockRes();
+    await Promise.all([handler({}, first), handler({}, second)]);
+
+    expect(si.currentLoad).toHaveBeenCalledTimes(1);
+    expect(si.mem).toHaveBeenCalledTimes(1);
+    expect(si.graphics).toHaveBeenCalledTimes(1);
+    expect(second.body.fetchedAt).toBe(first.body.fetchedAt);
+
+    vi.advanceTimersByTime(10_001);
+    const expired = createMockRes();
+    await handler({}, expired);
+
+    expect(si.currentLoad).toHaveBeenCalledTimes(2);
+    expect(si.mem).toHaveBeenCalledTimes(2);
+    expect(si.graphics).toHaveBeenCalledTimes(2);
+    expect(expired.body.fetchedAt).toBeGreaterThan(first.body.fetchedAt);
   });
 
   it("degrades explicitly when GPU metrics are unavailable", async () => {

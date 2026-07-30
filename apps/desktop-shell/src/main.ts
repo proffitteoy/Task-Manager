@@ -14,21 +14,18 @@ import {
 } from "electron";
 
 import { registerGlobalShortcuts } from "./shortcuts/globalShortcuts.js";
-import {
-  startActivityWatchProcess,
-  stopActivityWatchProcess
-} from "./services/activityWatchProcess.js";
 import { startCoreProcess, stopCoreProcess } from "./services/coreProcess.js";
 import { startHomepageProcess, stopHomepageProcess } from "./services/homepageProcess.js";
 import type { RuntimeService } from "./services/runtimeProcess.js";
 import { createTray } from "./tray/tray.js";
-import { createMainWindow } from "./windows/mainWindow.js";
+import { createMainWindow, loadHomepage } from "./windows/mainWindow.js";
 
 let mainWindow: BrowserWindow | undefined;
-let activityWatchRuntime: RuntimeService | undefined;
 let coreRuntime: RuntimeService | undefined;
 let homepageRuntime: RuntimeService | undefined;
 let isQuitting = false;
+let homepageLoaded = false;
+const pendingNotices: string[] = [];
 
 app.setName("Research Workstation");
 app.setAppUserModelId("dev.research-workstation.desktop");
@@ -49,14 +46,9 @@ async function bootstrap(): Promise<void> {
   const smokeTest = process.env.RESEARCH_WORKSTATION_SMOKE_TEST === "1";
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
 
-  activityWatchRuntime = await startActivityWatchProcess(userData);
-  coreRuntime = await startCoreProcess(userData);
-  homepageRuntime = await startHomepageProcess(userData, coreRuntime.url);
   const appIcon = loadAppIcon();
-
   mainWindow = createMainWindow({
     appIcon,
-    homepageUrl: homepageRuntime.url,
     showWhenReady: !smokeTest,
     shouldQuit: () => isQuitting
   });
@@ -89,10 +81,20 @@ async function bootstrap(): Promise<void> {
     return {
       core: runtimeStatus(coreRuntime),
       homepage: runtimeStatus(homepageRuntime),
-      activityWatch: runtimeStatus(activityWatchRuntime),
+      activityWatch: {
+        external: true,
+        managed: false,
+        url: process.env.ACTIVITYWATCH_URL || "http://127.0.0.1:5600"
+      },
       userData
     };
   });
+
+  coreRuntime = await startCoreProcess(userData);
+  homepageRuntime = await startHomepageProcess(userData, coreRuntime.url);
+  await loadHomepage(mainWindow, homepageRuntime.url);
+  homepageLoaded = true;
+  setTimeout(flushPendingNotices, 250);
 
   if (smokeTest) {
     setTimeout(quitApplication, 1_000);
@@ -108,7 +110,6 @@ app.on("before-quit", () => {
   globalShortcut.unregisterAll();
   stopHomepageProcess();
   stopCoreProcess();
-  stopActivityWatchProcess();
 });
 
 function quitApplication(): void {
@@ -175,7 +176,18 @@ function requiredCoreUrl(): string {
 }
 
 function sendNotice(message: string): void {
-  if (mainWindow && !mainWindow.isDestroyed()) {
+  if (homepageLoaded && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("desktop:notice", message);
+    return;
+  }
+  if (pendingNotices.length < 10) {
+    pendingNotices.push(message);
+  }
+}
+
+function flushPendingNotices(): void {
+  if (!homepageLoaded || !mainWindow || mainWindow.isDestroyed()) return;
+  for (const message of pendingNotices.splice(0)) {
     mainWindow.webContents.send("desktop:notice", message);
   }
 }
@@ -217,7 +229,6 @@ function loadAppIcon(): NativeImage {
 function handleBootstrapError(error: unknown): void {
   stopHomepageProcess();
   stopCoreProcess();
-  stopActivityWatchProcess();
   const userData = app.getPath("userData");
   dialog.showErrorBox(
     "科研开发工作站启动失败",

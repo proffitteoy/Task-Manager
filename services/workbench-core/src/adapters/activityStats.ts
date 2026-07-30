@@ -8,10 +8,34 @@ import { buildTokenDashboard } from "./tokenDashboard.js";
 export class ActivityStatsAdapter {
   private githubCache: { at: number; username: string; payload: Record<string, unknown> } | undefined;
   private tokeiCache: { at: number; tokeiRepo: string; payload: Record<string, unknown> } | undefined;
+  private readonly githubPending = new Map<string, Promise<Record<string, unknown>>>();
+  private readonly tokeiPending = new Map<string, Promise<Record<string, unknown>>>();
 
   constructor(private readonly config: WorkbenchConfig) {}
 
   async tokeiUsage(forceFresh = false, settings: { tokeiRepo?: string; tokeiPython?: string } = {}): Promise<Record<string, unknown>> {
+    const key = [
+      settings.tokeiRepo || this.config.tokeiRepo,
+      settings.tokeiPython || this.config.tokeiPython || "",
+      forceFresh ? "fresh" : "cached"
+    ].join("::");
+    const existing = this.tokeiPending.get(key);
+    if (existing) return existing;
+
+    let pending: Promise<Record<string, unknown>>;
+    pending = this.loadTokeiUsage(forceFresh, settings).finally(() => {
+      if (this.tokeiPending.get(key) === pending) {
+        this.tokeiPending.delete(key);
+      }
+    });
+    this.tokeiPending.set(key, pending);
+    return pending;
+  }
+
+  private async loadTokeiUsage(
+    forceFresh = false,
+    settings: { tokeiRepo?: string; tokeiPython?: string } = {}
+  ): Promise<Record<string, unknown>> {
     const now = Date.now();
     const requestedRepo = settings.tokeiRepo || this.config.tokeiRepo;
     if (!requestedRepo) {
@@ -88,6 +112,31 @@ export class ActivityStatsAdapter {
   }
 
   async githubContributions(forceFresh = false, username = this.config.githubUsername): Promise<Record<string, unknown>> {
+    const key = `${username}::${forceFresh ? "fresh" : "cached"}`;
+    const existing = this.githubPending.get(key);
+    if (existing) return existing;
+
+    let pending: Promise<Record<string, unknown>>;
+    pending = this.loadGitHubContributions(forceFresh, username).finally(() => {
+      if (this.githubPending.get(key) === pending) {
+        this.githubPending.delete(key);
+      }
+    });
+    this.githubPending.set(key, pending);
+    return pending;
+  }
+
+  resetCache(): void {
+    this.githubCache = undefined;
+    this.tokeiCache = undefined;
+    this.githubPending.clear();
+    this.tokeiPending.clear();
+  }
+
+  private async loadGitHubContributions(
+    forceFresh = false,
+    username = this.config.githubUsername
+  ): Promise<Record<string, unknown>> {
     const now = Date.now();
     if (!username) {
       return {

@@ -5,17 +5,17 @@
 ## 已实现
 
 - 安装包内携带 Homepage standalone、`workbench-core` 与 SQLite 原生依赖。
-- 先启动 core、再启动 Homepage；core 保持 HTTP 健康检查，内置 Homepage 在端口开始监听后即交给 Chromium 完成首次页面请求，避免安装后的冷请求被短探针反复取消。打包内置的静态 `/healthcheck.txt` 继续用于安装包校验和诊断。
+- 主窗口先显示轻量启动页，再依次启动 core 与 Homepage；内置 Homepage 在端口开始监听后即交给 Chromium 完成首次页面请求，避免安装后的冷请求被短探针反复取消。打包内置的静态 `/healthcheck.txt` 继续用于安装包校验和诊断。
 - 默认优先使用 `127.0.0.1:3900` 和 `127.0.0.1:3000`；端口占用时自动选择本地空闲端口。
 - SQLite、Homepage 配置、认证密钥和日志保存在 Electron `userData`，升级不会覆盖已有 Homepage 配置。
 - 单实例、关闭到托盘、托盘退出、打开数据目录。
 - 全局快捷键控制窗口、计时与音乐。
 - renderer 启用 `contextIsolation` 和 sandbox，禁用 Node integration；外链交给系统浏览器，桌面 IPC 校验来源。
 - 启动失败显示明确错误并指向日志目录。
-- 自动托管安装包内的 ActivityWatch server、窗口 watcher 和 AFK watcher；退出工作站时一并停止。
+- ActivityWatch 作为可选外部数据源，只读连接用户自行运行的 `aw-server`；桌面壳不再携带或拉起 server/watcher。
 - 携带 Tokei token collector、价格表和 Python 3.12 标准运行时，无需在安装目录手动放置 `usage.30s.py`。
 
-当前未实现自动更新、代码签名、桌面歌词、全屏休息窗和开机自启动。应用与 ActivityWatch 都不会被加入 Windows 启动项；ActivityWatch 改由桌面壳随应用启动和退出。
+当前未实现自动更新、代码签名、桌面歌词、全屏休息窗和开机自启动。
 
 ## 开发与打包
 
@@ -24,11 +24,13 @@
 ```bash
 pnpm install
 pnpm desktop:dev
+pnpm desktop:dev:built
 pnpm desktop:pack
 pnpm desktop:dist
 ```
 
-- `desktop:dev`：构建 contracts、core、Homepage 和桌面壳后启动 Electron。
+- `desktop:dev`：快速开发启动。只构建 contracts 和桌面壳，core 与 Homepage 使用开发服务并行启动，Electron 立即显示启动页等待服务就绪。
+- `desktop:dev:built`：完整构建 contracts、core、Homepage 和桌面壳后，以生产运行时启动 Electron；用于打包前联调。
 - `desktop:pack`：生成 `release/win-unpacked/`。
 - `desktop:dist`：生成 `release/ResearchWorkstation-<version>-x64.exe` 和 blockmap。
 
@@ -45,7 +47,6 @@ pnpm desktop:dist
   config/nextauth-secret
   logs/workbench-core.log
   logs/homepage.log
-  logs/activitywatch.log
 ```
 
 Homepage 示例配置只补充缺失文件，不覆盖用户已经修改的同名文件。卸载器默认保留该目录。
@@ -61,7 +62,7 @@ HOMEPAGE_EXTERNAL=1
 HOMEPAGE_URL=http://127.0.0.1:3000
 ```
 
-其他可用覆盖：`WORKBENCH_CORE_PORT`、`HOMEPAGE_PORT`、`DATABASE_URL`、`ACTIVITYWATCH_URL`、`ACTIVITYWATCH_MANAGED`、`ACTIVITYWATCH_HOME`、`MUSIC_SERVICE_URL`、`TOKEI_REPO`、`TOKEI_PYTHON`、`NEXTAUTH_SECRET` 和 `RESEARCH_WORKSTATION_USER_DATA_DIR`。打包时可用 `ACTIVITYWATCH_BUNDLE_DIR`、`TOKEI_BUNDLE_DIR` 和 `TOKEI_PYTHON_HOME` 指定运行时来源。
+其他可用覆盖：`WORKBENCH_CORE_PORT`、`HOMEPAGE_PORT`、`DATABASE_URL`、`ACTIVITYWATCH_URL`、`MUSIC_SERVICE_URL`、`TOKEI_REPO`、`TOKEI_PYTHON`、`NEXTAUTH_SECRET` 和 `RESEARCH_WORKSTATION_USER_DATA_DIR`。打包时可用 `TOKEI_BUNDLE_DIR` 和 `TOKEI_PYTHON_HOME` 指定运行时来源。
 
 ## 快捷键
 

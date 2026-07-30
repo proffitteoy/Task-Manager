@@ -19,6 +19,7 @@ export async function startCoreProcess(userData: string): Promise<RuntimeService
     coreRuntime = await connectExternalRuntime({
       healthUrl: new URL("/health", configuredUrl).toString(),
       name: "外部 workbench-core",
+      timeoutMs: 30_000,
       url: configuredUrl.origin
     });
     return coreRuntime;

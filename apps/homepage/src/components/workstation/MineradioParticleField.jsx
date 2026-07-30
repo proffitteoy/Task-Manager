@@ -7,6 +7,9 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 const PLANE_SIZE = 4.8;
 const RIPPLE_MAX = 12;
+const MAX_PIXEL_RATIO = 1.25;
+const ACTIVE_FRAME_INTERVAL = 1000 / 30;
+const IDLE_FRAME_INTERVAL = 1000 / 12;
 function clampRange(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -14,9 +17,15 @@ function normalizeCoverResolution(value) {
   return clampRange(Number(value) || 1, 0.75, 1.55);
 }
 function coverParticleGridForResolution(value) {
-  let grid = Math.round(118 * normalizeCoverResolution(value));
-  grid = Math.max(88, Math.min(183, grid));
+  let grid = Math.round(84 * normalizeCoverResolution(value));
+  grid = Math.max(63, Math.min(131, grid));
   return grid % 2 ? grid : grid + 1;
+}
+function preferredPixelRatio() {
+  return Math.min(Math.max(window.devicePixelRatio || 1, 1), MAX_PIXEL_RATIO);
+}
+function particleFrameInterval(state) {
+  return state.isPlaying && (state.volume || 0) > 0.02 ? ACTIVE_FRAME_INTERVAL : IDLE_FRAME_INTERVAL;
 }
 function hashSeed(value) {
   const input = String(value || "mineradio");
@@ -482,7 +491,9 @@ function MineradioParticleField({
     let reduceMotion = reduceQuery.matches;
     let frame = 0;
     let last = performance.now();
+    let lastRenderedAt = 0;
     let disposed = false;
+    let pageVisible = document.visibilityState !== "hidden";
     let width = 1;
     let height = 1;
     let lastRippleAt = 0;
@@ -490,11 +501,11 @@ function MineradioParticleField({
     const ripples = Array.from({ length: RIPPLE_MAX }, () => ({ x: 0, y: 0, age: -10, str: 0 }));
     const renderer = new THREE.WebGLRenderer({
       alpha: true,
-      antialias: true,
-      powerPreference: "high-performance"
+      antialias: false,
+      powerPreference: "low-power"
     });
     renderer.setClearColor(0, 0);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(preferredPixelRatio());
     renderer.domElement.className = "h-full w-full";
     mount.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
@@ -607,13 +618,13 @@ function MineradioParticleField({
       const rect = mount.getBoundingClientRect();
       width = Math.max(1, rect.width);
       height = Math.max(1, rect.height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setPixelRatio(preferredPixelRatio());
       renderer.setSize(width, height, false);
       uniforms.uPixel.value = renderer.getPixelRatio();
       camera.aspect = width / height;
       camera.position.z = width < 640 ? 8.2 : 7.2;
       camera.updateProjectionMatrix();
-      if (reduceMotion) renderer.render(scene, camera);
+      if (reduceMotion && pageVisible) renderer.render(scene, camera);
     };
     const pushRipple = (x, y, strength) => {
       const ripple = ripples[rippleCursor];
@@ -639,9 +650,15 @@ function MineradioParticleField({
       rippleTexture.needsUpdate = true;
     };
     const render = (now) => {
+      if (disposed || !pageVisible) return;
+      const state = stateRef.current;
+      if (!reduceMotion && lastRenderedAt && now - lastRenderedAt < particleFrameInterval(state)) {
+        frame = window.requestAnimationFrame(render);
+        return;
+      }
       const delta = Math.min(0.05, Math.max(1e-3, (now - last) / 1e3));
       last = now;
-      const state = stateRef.current;
+      lastRenderedAt = now;
       const elapsed = now / 1e3;
       const bands = deriveSyntheticBands(state, elapsed);
       const active = state.isPlaying && (state.volume || 0) > 0.02;
@@ -675,7 +692,7 @@ function MineradioParticleField({
       particles.rotation.x += (targetRotX - particles.rotation.x) * 0.055;
       bloomParticles.rotation.copy(particles.rotation);
       renderer.render(scene, camera);
-      if (!reduceMotion) frame = window.requestAnimationFrame(render);
+      if (!reduceMotion && pageVisible) frame = window.requestAnimationFrame(render);
     };
     const handlePointerMove = (event) => {
       const rect = mount.getBoundingClientRect();
@@ -697,8 +714,22 @@ function MineradioParticleField({
     const handleMotionChange = () => {
       reduceMotion = reduceQuery.matches;
       window.cancelAnimationFrame(frame);
+      frame = 0;
       last = performance.now();
-      frame = window.requestAnimationFrame(render);
+      lastRenderedAt = 0;
+      if (pageVisible) frame = window.requestAnimationFrame(render);
+    };
+    const handleVisibilityChange = () => {
+      const nextVisible = document.visibilityState !== "hidden";
+      if (pageVisible === nextVisible) return;
+      pageVisible = nextVisible;
+      window.cancelAnimationFrame(frame);
+      frame = 0;
+      if (pageVisible) {
+        last = performance.now();
+        lastRenderedAt = 0;
+        frame = window.requestAnimationFrame(render);
+      }
     };
     resize();
     const observer = new ResizeObserver(resize);
@@ -706,13 +737,15 @@ function MineradioParticleField({
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("blur", handlePointerLeave);
     reduceQuery.addEventListener("change", handleMotionChange);
-    frame = window.requestAnimationFrame(render);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    if (pageVisible) frame = window.requestAnimationFrame(render);
     return () => {
       disposed = true;
       observer.disconnect();
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("blur", handlePointerLeave);
       reduceQuery.removeEventListener("change", handleMotionChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.cancelAnimationFrame(frame);
       scene.remove(particles);
       scene.remove(bloomParticles);

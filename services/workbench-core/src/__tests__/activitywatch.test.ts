@@ -18,7 +18,7 @@ describe("ActivityWatchAdapter", () => {
     const afkEvents = [{ timestamp: now.toISOString(), duration: 30, data: { status: "afk" } }];
     const webEvents = [{ timestamp: now.toISOString(), duration: 90, data: { url: "https://www.example.com/docs" } }];
 
-    vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
       const url = String(input);
       if (url.endsWith("/api/0/buckets")) {
         return jsonResponse({
@@ -31,10 +31,12 @@ describe("ActivityWatchAdapter", () => {
       if (url.includes("aw-watcher-afk-test")) return jsonResponse(afkEvents);
       if (url.includes("aw-watcher-web-test")) return jsonResponse(webEvents);
       return new Response("not found", { status: 404 });
-    }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     const adapter = new ActivityWatchAdapter(loadConfig({ activityWatchUrl: "http://127.0.0.1:5600" }));
     const summary = await adapter.summary();
+    const cachedSummary = await adapter.summary();
 
     expect(summary.connected).toBe(true);
     expect(summary.trackedMinutes).toBe(3);
@@ -49,6 +51,8 @@ describe("ActivityWatchAdapter", () => {
     expect(summary.topDomains).toEqual([{ name: "example.com", minutes: 2 }]);
     expect(summary.hourlyActivity).toHaveLength(24);
     expect((summary.timeline as unknown[])).toHaveLength(2);
+    expect(cachedSummary).toBe(summary);
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).endsWith("/api/0/buckets"))).toHaveLength(1);
   });
 });
 

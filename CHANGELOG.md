@@ -2,6 +2,32 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的结构，并使用语义化版本号。
 
+## [1.1.1] - 2026-07-30
+
+### 新增
+
+- 新增可双击的 `open-local.cmd` 与 `pnpm local` 本机浏览器模式：复用仓库已有依赖，自动启动并检查 Core 与 Homepage，服务就绪后打开默认浏览器，不经过 Electron。
+
+### 性能
+
+- 桌面窗口先显示轻量启动页，Core 与 Homepage 启动不再被可选 ActivityWatch 阻塞。
+- 工作站首屏先返回本地任务、计时与设置，ActivityWatch、Tokei、GitHub 和远程音乐改为后台刷新并复用短时缓存。
+- 非当前标签页不再挂载，页面隐藏时暂停轮询和计时刷新；系统资源只在“电脑活动”标签可见时采样。
+- 音乐粒子场改为按需加载、低功耗渲染和页面隐藏暂停，静态背景不再常驻运行多层动画。
+- 生产运行时移除 ActivityWatch 二进制、测试路由、Vitest/Vite、Next SWC、服务端 Three.js、副本源码、测试、类型声明与 source map。
+
+### 变更
+
+- ActivityWatch 统一作为可选外部 `aw-server` 数据源，桌面包不再携带或自动启动 server/window/AFK watcher。
+- `desktop:dev` 改为 Core、Homepage 与桌面壳并行的快速开发启动；新增 `desktop:dev:built` 保留完整生产运行时联调。
+- 外部音乐请求增加 3 秒超时，ActivityWatch、Tokei 与 GitHub 请求增加并发合并与缓存重置。
+
+### 修复
+
+- 修复 Dashboard 首次加载等待慢外部服务的问题。
+- 修复缓存重置期间旧请求可能覆盖新快照的问题。
+- 修复放在 `src/pages` 下的 MCP 测试被 Next.js 追踪进生产包的问题，并增加页面目录守卫。
+
 ## [1.1.0] - 2026-07-15
 
 ### 新增
@@ -43,5 +69,6 @@
 - ActivityWatch 数据仅通过本机接口只读聚合。
 - 硬件资源采样只保留在当前浏览器会话，不写入数据库或远程服务。
 
+[1.1.1]: https://github.com/proffitteoy/Task-Manager/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/proffitteoy/Task-Manager/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/proffitteoy/Task-Manager/releases/tag/v1.0.0

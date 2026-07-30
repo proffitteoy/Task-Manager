@@ -2,8 +2,11 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ActivityStatsAdapter } from "../adapters/activityStats.js";
+import { ActivityWatchAdapter } from "../adapters/activitywatch.js";
+import { MusicAdapter } from "../adapters/music.js";
 import { createApp, type WorkbenchApp } from "../server.js";
 
 let workbench: WorkbenchApp;
@@ -23,6 +26,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await workbench.app.close();
+  vi.restoreAllMocks();
 });
 
 describe("workbench-core MVP", () => {
@@ -92,6 +96,71 @@ describe("workbench-core MVP", () => {
     expect(summary.statusCode).toBe(200);
     expect(summary.json().errors.some((item: string) => item.startsWith("未检测到 ActivityWatch："))).toBe(true);
     expect(summary.json().sources).toBeUndefined();
+  });
+
+  it("returns the first dashboard payload without waiting for optional external sources", async () => {
+    let releaseActivityWatch: ((value: Record<string, unknown>) => void) | undefined;
+    const slowActivityWatch = new Promise<Record<string, unknown>>((resolve) => {
+      releaseActivityWatch = resolve;
+    });
+    vi.spyOn(ActivityWatchAdapter.prototype, "summary").mockReturnValue(slowActivityWatch);
+    vi.spyOn(ActivityStatsAdapter.prototype, "tokeiUsage").mockResolvedValue({ connected: false });
+    vi.spyOn(ActivityStatsAdapter.prototype, "githubContributions").mockResolvedValue({ connected: false });
+    vi.spyOn(MusicAdapter.prototype, "current").mockResolvedValue({
+      connected: false,
+      mood: "focus",
+      playing: false,
+      provider: "mock",
+      queue: [],
+      updatedAt: new Date().toISOString()
+    });
+
+    const startedAt = performance.now();
+    const dashboard = await workbench.app.inject("/api/widgets/workstation");
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(dashboard.statusCode).toBe(200);
+    expect(elapsedMs).toBeLessThan(200);
+    expect(dashboard.json().externalData).toEqual(
+      expect.objectContaining({ loading: true, stale: true })
+    );
+
+    releaseActivityWatch?.({ connected: false });
+    await new Promise((resolve) => setImmediate(resolve));
+    const refreshed = await workbench.app.inject("/api/widgets/workstation");
+    expect(refreshed.json().externalData.loading).toBe(false);
+    expect(refreshed.json().externalData.stale).toBe(false);
+  });
+
+  it("reuses the dashboard external snapshot until reset-cache invalidates it", async () => {
+    const activityWatch = vi
+      .spyOn(ActivityWatchAdapter.prototype, "summary")
+      .mockResolvedValue({ connected: true, trackedMinutes: 1 });
+    vi.spyOn(ActivityStatsAdapter.prototype, "tokeiUsage").mockResolvedValue({ connected: false });
+    vi.spyOn(ActivityStatsAdapter.prototype, "githubContributions").mockResolvedValue({ connected: false });
+    vi.spyOn(MusicAdapter.prototype, "current").mockResolvedValue({
+      connected: true,
+      mood: "focus",
+      playing: false,
+      provider: "mock",
+      queue: [],
+      updatedAt: new Date().toISOString()
+    });
+
+    await workbench.app.inject("/api/widgets/workstation");
+    await new Promise((resolve) => setImmediate(resolve));
+    await workbench.app.inject("/api/widgets/workstation");
+    expect(activityWatch).toHaveBeenCalledTimes(1);
+
+    const reset = await workbench.app.inject({
+      method: "POST",
+      url: "/api/settings/reset-cache"
+    });
+    expect(reset.statusCode).toBe(200);
+
+    await workbench.app.inject("/api/widgets/workstation");
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(activityWatch).toHaveBeenCalledTimes(2);
   });
 
   it("generates a daily review from available local data", async () => {

@@ -1,6 +1,6 @@
 {
   "name": "@cw/desktop-shell",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Chromium desktop shell for Research and Development Workstation",
   "author": "Research and Development Workstation Contributors",
@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "electron .",
+    "dev:workspace": "node scripts/dev-workspace.mjs",
     "pack": "node scripts/run-builder.mjs --dir --win",
     "dist": "node scripts/run-builder.mjs --win nsis"
   },
@@ -36,19 +37,32 @@
     },
     "files": [
       "dist/**",
-      "package.json"
+      "package.json",
+      "!node_modules/**/{__tests__,coverage,docs,example,examples,test,tests}/**",
+      "!node_modules/**/*.{spec,test}.{cjs,cts,js,jsx,mjs,mts,ts,tsx}",
+      "!node_modules/**/*.{map,tsbuildinfo}",
+      "!node_modules/**/*.d.{cts,mts,ts}",
+      "!node_modules/**/{CHANGELOG,README,readme}*",
+      "!node_modules/@cw/contracts/src/**",
+      "!node_modules/@cw/contracts/tsconfig.json",
+      "!node_modules/@cw/contracts/**/*.d.ts",
+      "!node_modules/@cw/contracts/**/*.map",
+      "!node_modules/@cw/workbench-core/data/**",
+      "!node_modules/@cw/workbench-core/src/**",
+      "!node_modules/@cw/workbench-core/dist/__tests__/**",
+      "!node_modules/@cw/workbench-core/Dockerfile",
+      "!node_modules/@cw/workbench-core/tsconfig.json",
+      "!node_modules/@cw/workbench-core/vitest.config.ts",
+      "!node_modules/@cw/workbench-core/**/*.d.ts",
+      "!node_modules/@cw/workbench-core/**/*.map"
     ],
     "asarUnpack": [
       "node_modules/better-sqlite3/**"
     ],
     "extraResources": [
       {
-        "from": "build/homepage-runtime-v2",
+        "from": "build/homepage-runtime-v4",
         "to": "app-runtime/homepage"
-      },
-      {
-        "from": "build/activitywatch-runtime",
-        "to": "app-runtime/activitywatch"
       },
       {
         "from": "build/tokei-runtime",

@@ -1,3 +1,4 @@
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import {
@@ -16,8 +17,15 @@ import {
   LuVolumeX,
 } from "react-icons/lu";
 
-import MineradioParticleField from "components/workstation/MineradioParticleField";
 import { buildMusicStreamUrl } from "components/workstation/music-stream";
+
+const MineradioParticleField = dynamic(
+  () => import("components/workstation/MineradioParticleField"),
+  {
+    loading: () => <div className="h-full w-full bg-slate-950/10" aria-hidden="true" />,
+    ssr: false,
+  }
+);
 
 const FALLBACK_COVER = "/workstation/blog-background/background.png";
 const PLAY_MODE_LABELS = {

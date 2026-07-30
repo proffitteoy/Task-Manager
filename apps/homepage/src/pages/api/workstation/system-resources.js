@@ -1,6 +1,35 @@
 import si from "systeminformation";
 
+const CACHE_TTL_MS = 10_000;
+
+let cachedSample = null;
+let cachedUntil = 0;
+let pendingSample = null;
+
 export default async function handler(_req, res) {
+  const sample = await readSystemResources();
+  return res.status(200).json(sample);
+}
+
+async function readSystemResources() {
+  const now = Date.now();
+  if (cachedSample && now < cachedUntil) return cachedSample;
+  if (pendingSample) return pendingSample;
+
+  pendingSample = collectSystemResources()
+    .then((sample) => {
+      cachedSample = sample;
+      cachedUntil = Date.now() + CACHE_TTL_MS;
+      return sample;
+    })
+    .finally(() => {
+      pendingSample = null;
+    });
+
+  return pendingSample;
+}
+
+async function collectSystemResources() {
   const [loadResult, memoryResult, graphicsResult] = await Promise.allSettled([
     si.currentLoad(),
     si.mem(),
@@ -16,7 +45,7 @@ export default async function handler(_req, res) {
     .filter((controller) => controller && controller.model)
     .sort((left, right) => Number(right.memoryTotal ?? 0) - Number(left.memoryTotal ?? 0))[0];
 
-  return res.status(200).json({
+  return {
     fetchedAt: Date.now(),
     cpu: load
       ? {
@@ -46,7 +75,7 @@ export default async function handler(_req, res) {
       memoryResult.status === "rejected" ? "内存指标不可用" : null,
       graphicsResult.status === "rejected" ? "GPU 指标不可用" : null,
     ].filter(Boolean),
-  });
+  };
 }
 
 function finiteNumber(value) {

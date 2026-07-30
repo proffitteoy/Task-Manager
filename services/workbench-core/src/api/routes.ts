@@ -18,8 +18,25 @@ export interface RouteContext {
   events: EventBus;
 }
 
+interface DashboardExternalSnapshot {
+  activityWatch: Record<string, unknown>;
+  github: Record<string, unknown>;
+  music: Record<string, unknown>;
+  refreshedAt: number;
+  tokei: Record<string, unknown>;
+}
+
+interface DashboardExternalState {
+  date: string;
+  pending?: Promise<DashboardExternalSnapshot>;
+  snapshot?: DashboardExternalSnapshot;
+}
+
+const DASHBOARD_EXTERNAL_TTL_MS = 30_000;
+const dashboardExternalStates = new WeakMap<RouteContext, DashboardExternalState>();
+
 export async function registerRoutes(app: FastifyInstance, context: RouteContext): Promise<void> {
-  app.get("/health", async () => ({ ok: true, version: "1.1.0" }));
+  app.get("/health", async () => ({ ok: true, version: "1.1.1" }));
 
   app.get("/api/workstation/status", async () => workstationStatus(context));
   app.get("/api/widgets/workstation", async () => widgetsPayload(context));
@@ -39,6 +56,7 @@ export async function registerRoutes(app: FastifyInstance, context: RouteContext
   app.get("/api/settings/workstation", async () => context.repository.getWorkstationSettings());
   app.patch("/api/settings/workstation", async (request) => {
     const settings = context.repository.updateWorkstationSettings(objectBody(request) as never);
+    invalidateExternalCaches(context);
     context.events.publish("settings.workstation.updated", {});
     return settings;
   });
@@ -107,6 +125,7 @@ export async function registerRoutes(app: FastifyInstance, context: RouteContext
         ? context.repository.updateWorkstationSettings(body.settings as never)
         : context.repository.getWorkstationSettings();
     if (!preview) {
+      invalidateExternalCaches(context);
       context.events.publish("settings.imported", {});
     }
     return {
@@ -118,8 +137,9 @@ export async function registerRoutes(app: FastifyInstance, context: RouteContext
     };
   });
   app.post("/api/settings/reset-cache", async () => {
+    invalidateExternalCaches(context);
     context.events.publish("settings.cache.reset", {});
-    return { ok: true, message: "当前 MVP 暂无持久缓存需要清理" };
+    return { ok: true, message: "已清理工作站外部数据缓存" };
   });
   app.post("/api/settings/delete-all-data", async (request) => {
     const body = objectBody(request);
@@ -127,6 +147,7 @@ export async function registerRoutes(app: FastifyInstance, context: RouteContext
       throw new Error("Missing confirmation phrase");
     }
     context.repository.deleteAllData();
+    invalidateExternalCaches(context);
     context.events.publish("settings.data.deleted", {});
     return { ok: true };
   });
@@ -327,7 +348,7 @@ function workstationStatus(context: RouteContext): WorkstationStatus {
     mode: settings.defaultMode,
     core: {
       ok: true,
-      version: "1.1.0",
+      version: "1.1.1",
       databasePath: context.config.databasePath
     },
     modules: {
@@ -344,11 +365,15 @@ function workstationStatus(context: RouteContext): WorkstationStatus {
 async function widgetsPayload(context: RouteContext): Promise<Record<string, unknown>> {
   const date = today();
   context.repository.carryOverIncompleteTasks(date);
-  const [activity, music, summary] = await Promise.all([
-    activityWatchCurrent(context),
-    context.music.current(context.repository.getWorkstationSettings().music),
-    activitySummary(context, date)
-  ]);
+  const external = readDashboardExternalSnapshot(context, date);
+  const summary = buildActivitySummary(context, date, external.snapshot);
+  const activity = isObject(external.snapshot.activityWatch.current)
+    ? external.snapshot.activityWatch.current
+    : {
+        connected: external.snapshot.activityWatch.connected === true,
+        loading: external.snapshot.activityWatch.loading === true,
+        baseUrl: context.repository.getWorkstationSettings().activitywatch.baseUrl
+      };
   return {
     status: workstationStatus(context),
     projects: context.repository.listProjects(),
@@ -356,26 +381,32 @@ async function widgetsPayload(context: RouteContext): Promise<Record<string, unk
     tasks: context.repository.listTasks(),
     timer: context.repository.getCurrentTimer(),
     activity,
-    music,
+    music: external.snapshot.music,
     summary,
     review: context.repository.getDailyReview(date),
     settings: context.repository.getWorkstationSettings(),
-    widgetSettings: context.repository.listWidgetSettings()
+    widgetSettings: context.repository.listWidgetSettings(),
+    externalData: {
+      loading: external.loading,
+      stale: external.stale,
+      refreshedAt: external.snapshot.refreshedAt || undefined
+    }
   };
 }
 
 async function activitySummary(context: RouteContext, date: string): Promise<Record<string, unknown>> {
+  const external = await refreshDashboardExternalSnapshot(context, date);
+  return buildActivitySummary(context, date, external);
+}
+
+function buildActivitySummary(
+  context: RouteContext,
+  date: string,
+  external: DashboardExternalSnapshot
+): Record<string, unknown> {
   const sessions = context.repository.listTodaySessions(date);
   const tasks = context.repository.listTasks();
-  const settings = context.repository.getWorkstationSettings();
-  const [activityWatch, tokei, github] = await Promise.all([
-    activityWatchSummary(context),
-    context.activityStats.tokeiUsage(false, {
-      tokeiRepo: settings.activityStats.tokeiRepo,
-      tokeiPython: settings.activityStats.tokeiPython
-    }),
-    context.activityStats.githubContributions(false, settings.activityStats.githubUsername)
-  ]);
+  const { activityWatch, github, tokei } = external;
   const focusMinutes = sessions.reduce((total, session) => total + (session.actualMinutes ?? 0), 0);
   const effectiveFocusMinutes = sessions.reduce((total, session) => {
     const evidence = session.activityEvidence as { effectiveMinutes?: number } | undefined;
@@ -394,6 +425,7 @@ async function activitySummary(context: RouteContext, date: string): Promise<Rec
     : [];
   const computerActivity = {
     connected: activityWatch.connected === true,
+    loading: activityWatch.loading === true,
     date: optionalString(activityWatch.date) ?? date,
     trackedMinutes: optionalNumber(activityWatch.trackedMinutes) ?? 0,
     topApps,
@@ -444,11 +476,151 @@ async function activitySummary(context: RouteContext, date: string): Promise<Rec
   };
 }
 
+function readDashboardExternalSnapshot(
+  context: RouteContext,
+  date: string
+): { loading: boolean; snapshot: DashboardExternalSnapshot; stale: boolean } {
+  const state = dashboardExternalState(context, date);
+  const snapshot = state.snapshot ?? initialDashboardExternalSnapshot(context);
+  const stale = snapshot.refreshedAt === 0 || Date.now() - snapshot.refreshedAt >= DASHBOARD_EXTERNAL_TTL_MS;
+  if (stale && !state.pending) {
+    void refreshDashboardExternalSnapshot(context, date);
+  }
+  return {
+    loading: Boolean(state.pending) || snapshot.refreshedAt === 0,
+    snapshot,
+    stale
+  };
+}
+
+function refreshDashboardExternalSnapshot(
+  context: RouteContext,
+  date: string,
+  force = false
+): Promise<DashboardExternalSnapshot> {
+  const state = dashboardExternalState(context, date);
+  if (state.pending) return state.pending;
+  if (
+    !force
+    && state.snapshot
+    && Date.now() - state.snapshot.refreshedAt < DASHBOARD_EXTERNAL_TTL_MS
+  ) {
+    return Promise.resolve(state.snapshot);
+  }
+
+  const settings = context.repository.getWorkstationSettings();
+  let pending: Promise<DashboardExternalSnapshot>;
+  pending = Promise.allSettled([
+    activityWatchSummary(context),
+    context.activityStats.tokeiUsage(false, {
+      tokeiRepo: settings.activityStats.tokeiRepo,
+      tokeiPython: settings.activityStats.tokeiPython
+    }),
+    context.activityStats.githubContributions(false, settings.activityStats.githubUsername),
+    context.music.current(settings.music)
+  ]).then(([activityWatch, tokei, github, music]) => {
+    const tokeiPayload = settledRecord(tokei, "Tokei");
+    const githubPayload = settledRecord(github, "GitHub");
+    const snapshot: DashboardExternalSnapshot = {
+      activityWatch: settledRecord(activityWatch, "ActivityWatch"),
+      github: settings.activityStats.githubUsername
+        ? githubPayload
+        : { ...githubPayload, disabled: true },
+      music: settledRecord(music, "音乐服务"),
+      refreshedAt: Date.now(),
+      tokei: settings.activityStats.tokeiRepo
+        ? tokeiPayload
+        : { ...tokeiPayload, disabled: true }
+    };
+    state.snapshot = snapshot;
+    return snapshot;
+  }).finally(() => {
+    if (state.pending === pending) state.pending = undefined;
+  });
+  state.pending = pending;
+  return pending;
+}
+
+function dashboardExternalState(context: RouteContext, date: string): DashboardExternalState {
+  const existing = dashboardExternalStates.get(context);
+  if (existing?.date === date) return existing;
+  const created: DashboardExternalState = { date };
+  dashboardExternalStates.set(context, created);
+  return created;
+}
+
+function initialDashboardExternalSnapshot(context: RouteContext): DashboardExternalSnapshot {
+  const settings = context.repository.getWorkstationSettings();
+  const musicState = context.repository.getMusicState();
+  const activityWatch = settings.activitywatch.enabled
+    ? {
+        connected: false,
+        loading: true,
+        baseUrl: settings.activitywatch.baseUrl,
+        topApps: [],
+        topWindows: [],
+        topDomains: [],
+        hourlyActivity: [],
+        timeline: []
+      }
+    : {
+        connected: false,
+        disabled: true,
+        baseUrl: settings.activitywatch.baseUrl,
+        topApps: [],
+        topWindows: [],
+        topDomains: [],
+        hourlyActivity: [],
+        timeline: []
+      };
+  const tokei = settings.activityStats.tokeiRepo
+    ? { connected: false, loading: true, roots: [] }
+    : { connected: false, disabled: true, roots: [] };
+  const github = settings.activityStats.githubUsername
+    ? { connected: false, loading: true, username: settings.activityStats.githubUsername, days: [] }
+    : { connected: false, disabled: true, username: "", days: [] };
+
+  return {
+    activityWatch,
+    github,
+    music: {
+      ...musicState,
+      connected: settings.music.enabled !== false,
+      loading: Boolean(settings.music.serviceUrl),
+      provider: settings.music.enabled === false ? "disabled" : settings.music.provider
+    },
+    refreshedAt: 0,
+    tokei
+  };
+}
+
+function settledRecord(
+  result: PromiseSettledResult<object>,
+  source: string
+): Record<string, unknown> {
+  if (result.status === "fulfilled") return { ...result.value };
+  return {
+    connected: false,
+    error: `${source} 后台刷新失败：${errorMessage(result.reason)}`
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function invalidateExternalCaches(context: RouteContext): void {
+  dashboardExternalStates.delete(context);
+  context.activityWatch.resetCache();
+  context.activityStats.resetCache();
+}
+
 async function buildReview(context: RouteContext, date: string): Promise<Record<string, unknown>> {
   const tasks = context.repository.listTasks();
   const sessions = context.repository.listTodaySessions(date);
-  const summary = await activitySummary(context, date);
-  const music = await context.music.current(context.repository.getWorkstationSettings().music);
+  const external = await refreshDashboardExternalSnapshot(context, date);
+  const summary = buildActivitySummary(context, date, external);
+  const music = external.music;
   const todaysTasks = tasks.filter((task) => task.plannedDate === date);
   const reviewTasks = todaysTasks.length > 0 ? todaysTasks : tasks;
   const doneTasks = reviewTasks.filter((task) => task.status === "done");
@@ -572,7 +744,12 @@ function stringArray(value: unknown): string[] | undefined {
 }
 
 function connectedError(name: string, payload: unknown): string | undefined {
-  if (!isObject(payload) || payload.connected !== false) {
+  if (
+    !isObject(payload)
+    || payload.connected !== false
+    || payload.loading === true
+    || payload.disabled === true
+  ) {
     return undefined;
   }
   const detail = optionalString(payload.error);
@@ -594,6 +771,8 @@ function moduleStatus(payload: unknown): Record<string, unknown> {
   }
   return {
     connected: payload.connected !== false,
+    disabled: payload.disabled === true,
+    loading: payload.loading === true,
     fetchedAt: payload.fetchedAt,
     error: payload.connected === false ? payload.error : undefined,
     baseUrl: payload.baseUrl,

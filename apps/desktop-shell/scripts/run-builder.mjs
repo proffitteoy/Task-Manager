@@ -32,14 +32,13 @@ const backupDirectory = join(appDirectory, "build", ".native-backup");
 const nodeNativeBackup = join(backupDirectory, "node-better_sqlite3.node");
 const electronNativeBackup = join(backupDirectory, "electron-better_sqlite3.node");
 const homepageStandalone = resolve(appDirectory, "../homepage/.next/standalone");
-const homepageRuntime = join(appDirectory, "build", "homepage-runtime-v2");
-const activityWatchRuntime = join(appDirectory, "build", "activitywatch-runtime");
+const homepageRuntime = join(appDirectory, "build", "homepage-runtime-v4");
+const homepageRuntimeFormat = "4";
 const tokeiRuntime = join(appDirectory, "build", "tokei-runtime");
 const pythonRuntime = join(appDirectory, "build", "python-runtime");
 const builderCache = join(appDirectory, "build", ".electron-builder-cache");
 
 prepareHomepageRuntime(homepageStandalone, homepageRuntime);
-prepareActivityWatchRuntime(activityWatchRuntime);
 prepareTokeiRuntime(tokeiRuntime);
 preparePythonRuntime(pythonRuntime);
 prepareBuilderCache(builderCache);
@@ -124,7 +123,7 @@ function prepareHomepageRuntime(source, destination) {
     return;
   }
 
-  rmSync(destination, { force: true, recursive: true });
+  rmSync(destination, { force: true, maxRetries: 5, recursive: true, retryDelay: 100 });
   mkdirSync(dirname(destination), { recursive: true });
   const excludedDirectories = ["node_modules", join("apps", "homepage", "node_modules")];
   cpSync(source, destination, {
@@ -142,11 +141,13 @@ function prepareHomepageRuntime(source, destination) {
   const destinationModules = join(destination, "apps", "homepage", "node_modules");
   mkdirSync(destinationModules, { recursive: true });
   const packageState = new Map();
-  const directPackages = listPackages(sourceModules).map(({ name, path }) => ({
-    destination: packagePath(destinationModules, name),
-    name,
-    source: realpathSync(path)
-  }));
+  const directPackages = listPackages(sourceModules)
+    .filter(({ name }) => !isExcludedHomepageRuntimePackage(name))
+    .map(({ name, path }) => ({
+      destination: packagePath(destinationModules, name),
+      name,
+      source: realpathSync(path)
+    }));
 
   // Seed direct dependencies first so their versions always win the top-level slots.
   for (const directPackage of directPackages) {
@@ -166,39 +167,13 @@ function prepareHomepageRuntime(source, destination) {
     throw new Error(`Portable Homepage runtime does not contain ${helperPackage}`);
   }
   verifyHomepageHealthcheckBypass(destination);
+  verifyHomepageRuntimeIsProductionOnly(destination);
   const links = findSymbolicLinks(destination);
   if (links.length > 0) {
     throw new Error(`Portable Homepage runtime still contains filesystem links: ${links[0]}`);
   }
-  console.log(`Prepared portable Homepage runtime with ${packageState.size} package directories.`);
-}
-
-function prepareActivityWatchRuntime(destination) {
-  const source = process.env.ACTIVITYWATCH_BUNDLE_DIR || process.env.ACTIVITYWATCH_HOME;
-  const modules = ["aw-server", "aw-watcher-window", "aw-watcher-afk"];
-  const isComplete = (directory) =>
-    modules.every((name) => existsSync(join(directory, name, `${name}.exe`)));
-
-  if (!source || !isComplete(source)) {
-    if (isComplete(destination)) {
-      console.log("Reusing the staged ActivityWatch runtime.");
-      return;
-    }
-    throw new Error(
-      "ActivityWatch runtime is missing. Install ActivityWatch or set ACTIVITYWATCH_BUNDLE_DIR before packaging."
-    );
-  }
-
-  rmSync(destination, { force: true, recursive: true });
-  mkdirSync(destination, { recursive: true });
-  for (const moduleName of modules) {
-    copyDirectory(join(source, moduleName), join(destination, moduleName));
-  }
-  copyFileSync(
-    join(appDirectory, "resources", "ACTIVITYWATCH-NOTICE.txt"),
-    join(destination, "ACTIVITYWATCH-NOTICE.txt")
-  );
-  console.log("Prepared the bundled ActivityWatch server and watchers.");
+  writeFileSync(join(destination, ".workstation-runtime-version"), homepageRuntimeFormat, "utf8");
+  console.log(`Prepared trimmed portable Homepage runtime with ${packageState.size} package directories.`);
 }
 
 function copyDirectory(source, destination) {
@@ -309,13 +284,21 @@ function canReuseHomepageRuntime(source, destination) {
     "helpers",
     "package.json"
   );
+  const runtimeVersion = join(destination, ".workstation-runtime-version");
   if (!existsSync(sourceBuildId) || !existsSync(destinationBuildId) || !existsSync(helperPackage)) {
+    return false;
+  }
+  if (
+    !existsSync(runtimeVersion)
+    || readFileSync(runtimeVersion, "utf8").trim() !== homepageRuntimeFormat
+  ) {
     return false;
   }
   if (!hasHomepageHealthcheckBypass(destination)) return false;
   if (readFileSync(sourceBuildId, "utf8") !== readFileSync(destinationBuildId, "utf8")) {
     return false;
   }
+  verifyHomepageRuntimeIsProductionOnly(destination);
   return findSymbolicLinks(destination).length === 0;
 }
 
@@ -382,6 +365,7 @@ function installPackageDependencies(source, destination, topLevelModules, packag
   }
 
   for (const [dependencyName, isOptional] of dependencies) {
+    if (isExcludedHomepageRuntimePackage(dependencyName)) continue;
     const dependencySource = resolveDependency(source, packageJson.name, dependencyName);
     if (!dependencySource) {
       if (isOptional) continue;
@@ -404,6 +388,10 @@ function installPackageDependencies(source, destination, topLevelModules, packag
     );
   }
   state.status = "installed";
+}
+
+function isExcludedHomepageRuntimePackage(packageName) {
+  return packageName === "three" || packageName.startsWith("@next/swc-");
 }
 
 function ensurePackageCopy(source, destination, packageState) {
@@ -431,13 +419,42 @@ function ensurePackageCopy(source, destination, packageState) {
       dereference: true,
       filter: (path) => {
         const pathFromPackage = relative(source, path);
-        return pathFromPackage !== "node_modules" && !pathFromPackage.startsWith(`node_modules${sep}`);
+        return (
+          pathFromPackage !== "node_modules"
+          && !pathFromPackage.startsWith(`node_modules${sep}`)
+          && shouldCopyRuntimePackagePath(pathFromPackage)
+        );
       },
       preserveTimestamps: true,
       recursive: true
     });
   }
   packageState.set(key, { packageJson: sourceJson, status: "seeded" });
+}
+
+function shouldCopyRuntimePackagePath(pathFromPackage) {
+  if (!pathFromPackage) return true;
+  const segments = pathFromPackage.split(sep);
+  const excludedDirectories = new Set([
+    ".github",
+    ".vscode",
+    "__tests__",
+    "coverage",
+    "docs",
+    "example",
+    "examples",
+    "test",
+    "tests"
+  ]);
+  if (segments.slice(0, -1).some((segment) => excludedDirectories.has(segment.toLowerCase()))) {
+    return false;
+  }
+
+  const filename = segments.at(-1);
+  if (/\.(?:spec|test)\.[cm]?[jt]sx?$/i.test(filename)) return false;
+  if (/\.(?:map|tsbuildinfo)$/i.test(filename)) return false;
+  if (/\.d\.(?:cts|mts|ts)$/i.test(filename)) return false;
+  return !/^(?:changelog|readme)(?:\..*)?$/i.test(filename);
 }
 
 function resolveDependency(sourcePackage, sourcePackageName, dependencyName) {
@@ -529,11 +546,37 @@ function verifyPackagedHomepageRuntime() {
     throw new Error(`Packaged Homepage runtime does not contain a valid ${healthcheckFile}`);
   }
   verifyHomepageHealthcheckBypass(packagedHomepage);
+  verifyHomepageRuntimeIsProductionOnly(packagedHomepage);
   const links = findSymbolicLinks(packagedHomepage);
   if (links.length > 0) {
     throw new Error(`Packaged Homepage runtime contains a non-portable link: ${links[0]}`);
   }
   console.log("Verified portable packaged Homepage runtime.");
+}
+
+function verifyHomepageRuntimeIsProductionOnly(runtime) {
+  const appRoot = join(runtime, "apps", "homepage");
+  const forbiddenPackages = ["three", "vitest", "vite"];
+  for (const packageName of forbiddenPackages) {
+    const packageJson = join(appRoot, "node_modules", packageName, "package.json");
+    if (existsSync(packageJson)) {
+      throw new Error(`Homepage production runtime unexpectedly contains ${packageName}`);
+    }
+  }
+  const nextModules = join(appRoot, "node_modules", "@next");
+  if (
+    existsSync(nextModules)
+    && readdirSync(nextModules).some((name) => name.startsWith("swc-"))
+  ) {
+    throw new Error("Homepage production runtime unexpectedly contains a Next.js SWC compiler");
+  }
+  const forbiddenFiles = findFilesMatching(
+    appRoot,
+    (filename) => /\.(?:spec|test)\.[cm]?[jt]sx?$/i.test(filename)
+  );
+  if (forbiddenFiles.length > 0) {
+    throw new Error(`Homepage production runtime contains a test file: ${forbiddenFiles[0]}`);
+  }
 }
 
 function verifyPackagedDesktopShell() {
@@ -543,16 +586,6 @@ function verifyPackagedDesktopShell() {
   }
   if (existsSync(join(resources, "default_app.asar"))) {
     throw new Error("Packaged desktop shell still contains Electron default_app.asar");
-  }
-  const activityWatch = join(resources, "app-runtime", "activitywatch");
-  for (const moduleName of ["aw-server", "aw-watcher-window", "aw-watcher-afk"]) {
-    const executable = join(activityWatch, moduleName, `${moduleName}.exe`);
-    if (!existsSync(executable)) {
-      throw new Error(`Packaged desktop shell does not contain ${executable}`);
-    }
-  }
-  if (!existsSync(join(activityWatch, "ACTIVITYWATCH-NOTICE.txt"))) {
-    throw new Error("Packaged desktop shell does not contain the ActivityWatch license notice");
   }
   const tokei = join(resources, "app-runtime", "tokei");
   for (const filename of ["usage.30s.py", "pricing.json", "pricing_overrides.json", "TOKEI-NOTICE.txt"]) {
@@ -585,6 +618,16 @@ function findFiles(directory, filename) {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) matches.push(...findFiles(path, filename));
     else if (entry.isFile() && entry.name === filename) matches.push(path);
+  }
+  return matches;
+}
+
+function findFilesMatching(directory, predicate) {
+  const matches = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) matches.push(...findFilesMatching(path, predicate));
+    else if (entry.isFile() && predicate(entry.name)) matches.push(path);
   }
   return matches;
 }
