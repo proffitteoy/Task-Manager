@@ -4,10 +4,6 @@
 
 ## [1.1.1] - 2026-07-30
 
-### 新增
-
-- 新增可双击的 `open-local.cmd` 与 `pnpm local` 本机浏览器模式：复用仓库已有依赖，自动启动并检查 Core 与 Homepage，服务就绪后打开默认浏览器，不经过 Electron。
-
 ### 性能
 
 - 桌面窗口先显示轻量启动页，Core 与 Homepage 启动不再被可选 ActivityWatch 阻塞。
