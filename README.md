@@ -68,24 +68,44 @@ Homepage 负责展示与编排，`workbench-core` 负责状态与规则。复杂
 
 ## 快速开始
 
-Windows 用户可直接下载 [ResearchWorkstation 1.1.1 安装包](https://github.com/proffitteoy/Task-Manager/releases/download/v1.1.1/ResearchWorkstation-1.1.1-x64.exe)。
+Windows 用户可直接下载 [ResearchWorkstation 1.1.1 安装包](https://github.com/proffitteoy/Task-Manager/releases/download/v1.1.1/ResearchWorkstation-1.1.1-x64.exe)。如果本机已有开发依赖，也可以不启动 Electron，直接使用浏览器模式。
 
 要求：Node.js 20 或更高版本、pnpm 11。
 
 ```bash
 pnpm install
-pnpm dev
 ```
 
-启动后访问：
+安装依赖后，Windows 可直接双击仓库根目录的 `open-local.cmd`。也可以在终端运行：
+
+```bash
+node scripts/open-local.mjs
+```
+
+本机入口会启动 Core 和 Homepage，并在真实工作站页面可以渲染后用默认浏览器打开；关闭终端前可一直使用，按 `Ctrl+C` 会停止本次启动的服务。默认优先使用本机已有生产构建，避免每次打开都进行源码编译；它会复用默认端口上已有的有效工作站服务，不会启动 Electron，也不会重复安装依赖。依赖状态完整时也可使用等价的 `pnpm local`。
+
+如需边改源码边看效果，可改用开发模式：
+
+```bash
+node scripts/open-local.mjs --dev
+```
+
+如只想启动服务而不自动打开浏览器：
+
+```bash
+node scripts/open-local.mjs --no-open
+```
+
+本机地址：
 
 - 工作站：`http://localhost:3000`
 - 设置：`http://localhost:3000/settings/workstation`
 - Core 健康检查：`http://127.0.0.1:3900/health`
 
-也可以分别启动：
+开发时仍可使用原始并行命令，或分别启动：
 
 ```bash
+pnpm dev
 pnpm dev:core
 pnpm dev:homepage
 ```

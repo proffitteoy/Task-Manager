@@ -6,6 +6,7 @@
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev": "pnpm --parallel --filter @cw/workbench-core --filter homepage dev",
+    "local": "node scripts/open-local.mjs",
     "dev:core": "pnpm --filter @cw/workbench-core dev",
     "dev:homepage": "pnpm --filter homepage dev",
     "build": "pnpm --filter @cw/contracts build && pnpm --filter @cw/workbench-core build && pnpm --filter homepage build",
