@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { WorkstationStatus } from "@cw/contracts";
+import type { ActivitySnapshot, WorkstationStatus } from "@cw/contracts";
 
 import type { WorkbenchConfig } from "../config.js";
 import type { EventBus } from "../events/bus.js";
@@ -33,6 +33,7 @@ interface DashboardExternalState {
 }
 
 const DASHBOARD_EXTERNAL_TTL_MS = 30_000;
+const TOKEI_SNAPSHOT_TTL_MS = 5 * 60_000;
 const dashboardExternalStates = new WeakMap<RouteContext, DashboardExternalState>();
 
 export async function registerRoutes(app: FastifyInstance, context: RouteContext): Promise<void> {
@@ -55,8 +56,13 @@ export async function registerRoutes(app: FastifyInstance, context: RouteContext
 
   app.get("/api/settings/workstation", async () => context.repository.getWorkstationSettings());
   app.patch("/api/settings/workstation", async (request) => {
-    const settings = context.repository.updateWorkstationSettings(objectBody(request) as never);
-    invalidateExternalCaches(context);
+    const body = objectBody(request);
+    const settings = context.repository.updateWorkstationSettings(body as never);
+    const activityStats = isObject(body.activityStats) ? body.activityStats : undefined;
+    invalidateExternalCaches(
+      context,
+      Boolean(activityStats && ("tokeiRepo" in activityStats || "tokeiPython" in activityStats))
+    );
     context.events.publish("settings.workstation.updated", {});
     return settings;
   });
@@ -125,7 +131,7 @@ export async function registerRoutes(app: FastifyInstance, context: RouteContext
         ? context.repository.updateWorkstationSettings(body.settings as never)
         : context.repository.getWorkstationSettings();
     if (!preview) {
-      invalidateExternalCaches(context);
+      invalidateExternalCaches(context, true);
       context.events.publish("settings.imported", {});
     }
     return {
@@ -137,7 +143,7 @@ export async function registerRoutes(app: FastifyInstance, context: RouteContext
     };
   });
   app.post("/api/settings/reset-cache", async () => {
-    invalidateExternalCaches(context);
+    invalidateExternalCaches(context, true);
     context.events.publish("settings.cache.reset", {});
     return { ok: true, message: "已清理工作站外部数据缓存" };
   });
@@ -272,12 +278,17 @@ export async function registerRoutes(app: FastifyInstance, context: RouteContext
   app.get("/api/activitywatch/today", async () => activityWatchToday(context));
   app.get("/api/activitywatch/summary", async () => activityWatchSummary(context));
 
-  app.get("/api/tokei/usage", async () => {
-    const settings = context.repository.getWorkstationSettings().activityStats;
-    return context.activityStats.tokeiUsage(false, {
-      tokeiRepo: settings.tokeiRepo,
-      tokeiPython: settings.tokeiPython
-    });
+  app.get("/api/tokei/usage", async (request) => {
+    const query = request.query as { fresh?: string } | undefined;
+    const forceFresh = query?.fresh === "1";
+    const snapshot = forceFresh ? undefined : readTokeiSnapshot(context);
+    if (snapshot) {
+      const ageMs = Date.now() - Date.parse(snapshot.createdAt);
+      const refreshing = !Number.isFinite(ageMs) || ageMs >= TOKEI_SNAPSHOT_TTL_MS;
+      if (refreshing) void refreshTokeiSnapshot(context, false).catch(() => undefined);
+      return { ...snapshot.payload, stale: refreshing, refreshing };
+    }
+    return refreshTokeiSnapshot(context, forceFresh);
   });
   app.get("/api/github/contributions", async (request) => {
     const query = request.query as { fresh?: string } | undefined;
@@ -512,10 +523,7 @@ function refreshDashboardExternalSnapshot(
   let pending: Promise<DashboardExternalSnapshot>;
   pending = Promise.allSettled([
     activityWatchSummary(context),
-    context.activityStats.tokeiUsage(false, {
-      tokeiRepo: settings.activityStats.tokeiRepo,
-      tokeiPython: settings.activityStats.tokeiPython
-    }),
+    refreshTokeiSnapshot(context, false),
     context.activityStats.githubContributions(false, settings.activityStats.githubUsername),
     context.music.current(settings.music)
   ]).then(([activityWatch, tokei, github, music]) => {
@@ -552,6 +560,7 @@ function dashboardExternalState(context: RouteContext, date: string): DashboardE
 function initialDashboardExternalSnapshot(context: RouteContext): DashboardExternalSnapshot {
   const settings = context.repository.getWorkstationSettings();
   const musicState = context.repository.getMusicState();
+  const savedTokei = readTokeiSnapshot(context);
   const activityWatch = settings.activitywatch.enabled
     ? {
         connected: false,
@@ -574,7 +583,7 @@ function initialDashboardExternalSnapshot(context: RouteContext): DashboardExter
         timeline: []
       };
   const tokei = settings.activityStats.tokeiRepo
-    ? { connected: false, loading: true, roots: [] }
+    ? savedTokei?.payload ?? { connected: false, loading: true, roots: [] }
     : { connected: false, disabled: true, roots: [] };
   const github = settings.activityStats.githubUsername
     ? { connected: false, loading: true, username: settings.activityStats.githubUsername, days: [] }
@@ -605,14 +614,47 @@ function settledRecord(
   };
 }
 
+function readTokeiSnapshot(context: RouteContext): ActivitySnapshot | undefined {
+  const settings = context.repository.getWorkstationSettings().activityStats;
+  if (!settings.tokeiRepo) return undefined;
+  const snapshot = context.repository.getLatestActivitySnapshot("tokei");
+  if (!snapshot || snapshot.payload.connected !== true) return undefined;
+
+  const roots = [snapshot.payload.roots, snapshot.payload.requestedRoots]
+    .flatMap((value) => Array.isArray(value) ? value : [])
+    .filter((value): value is string => typeof value === "string");
+  return roots.some((root) => sameLocalPath(root, settings.tokeiRepo)) ? snapshot : undefined;
+}
+
+async function refreshTokeiSnapshot(context: RouteContext, forceFresh: boolean): Promise<Record<string, unknown>> {
+  const settings = context.repository.getWorkstationSettings().activityStats;
+  const payload = await context.activityStats.tokeiUsage(forceFresh, {
+    tokeiRepo: settings.tokeiRepo,
+    tokeiPython: settings.tokeiPython
+  });
+  if (payload.connected === true) {
+    const existing = context.repository.getLatestActivitySnapshot("tokei");
+    if (existing?.payload.fetchedAt !== payload.fetchedAt) {
+      context.repository.saveLatestActivitySnapshot("tokei", payload);
+    }
+  }
+  return payload;
+}
+
+function sameLocalPath(left: string, right: string): boolean {
+  const normalize = (value: string) => value.replace(/[\\/]+$/, "").toLocaleLowerCase();
+  return normalize(left) === normalize(right);
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function invalidateExternalCaches(context: RouteContext): void {
+function invalidateExternalCaches(context: RouteContext, clearTokeiSnapshot = false): void {
   dashboardExternalStates.delete(context);
   context.activityWatch.resetCache();
   context.activityStats.resetCache();
+  if (clearTokeiSnapshot) context.repository.deleteActivitySnapshots("tokei");
 }
 
 async function buildReview(context: RouteContext, date: string): Promise<Record<string, unknown>> {

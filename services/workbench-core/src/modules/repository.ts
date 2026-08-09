@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import type {
+  ActivitySnapshot,
+  ActivitySource,
   DailyReview,
   FocusSegment,
   FocusSession,
@@ -596,6 +598,48 @@ export class WorkbenchRepository {
     return this.listWidgetSettings();
   }
 
+  getLatestActivitySnapshot(source: ActivitySource): ActivitySnapshot | undefined {
+    const row = this.sqlite
+      .prepare("SELECT * FROM activity_snapshots WHERE source = ? ORDER BY created_at DESC LIMIT 1")
+      .get(source) as Row | undefined;
+    return row ? mapActivitySnapshot(row) : undefined;
+  }
+
+  saveLatestActivitySnapshot(
+    source: ActivitySource,
+    payload: Record<string, unknown>,
+    date = today()
+  ): ActivitySnapshot {
+    const createdAt = new Date().toISOString();
+    const snapshot: ActivitySnapshot = {
+      id: `latest:${source}`,
+      source,
+      date,
+      payload,
+      createdAt
+    };
+    this.sqlite
+      .prepare(
+        `INSERT INTO activity_snapshots
+          (id, source, date, started_at, ended_at, payload_json, created_at)
+         VALUES (@id, @source, @date, NULL, NULL, @payloadJson, @createdAt)
+         ON CONFLICT(id) DO UPDATE SET
+          date = excluded.date,
+          payload_json = excluded.payload_json,
+          created_at = excluded.created_at`
+      )
+      .run({ ...snapshot, payloadJson: JSON.stringify(payload) });
+    return snapshot;
+  }
+
+  deleteActivitySnapshots(source?: ActivitySource): void {
+    if (source) {
+      this.sqlite.prepare("DELETE FROM activity_snapshots WHERE source = ?").run(source);
+      return;
+    }
+    this.sqlite.prepare("DELETE FROM activity_snapshots").run();
+  }
+
   exportData(): Record<string, unknown> {
     return {
       exportedAt: new Date().toISOString(),
@@ -787,6 +831,18 @@ function mapDailyReview(row: Row): DailyReview {
     review: parseJson<Record<string, unknown>>(row.review_json, {}),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at)
+  };
+}
+
+function mapActivitySnapshot(row: Row): ActivitySnapshot {
+  return {
+    id: String(row.id),
+    source: String(row.source) as ActivitySource,
+    date: String(row.date),
+    startedAt: optionalString(row.started_at),
+    endedAt: optionalString(row.ended_at),
+    payload: parseJson<Record<string, unknown>>(row.payload_json, {}),
+    createdAt: String(row.created_at)
   };
 }
 

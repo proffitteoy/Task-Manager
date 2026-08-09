@@ -37,6 +37,7 @@ describe("WorkstationDashboard runtime polling", () => {
     });
     window.history.replaceState(null, "", "/");
     localStorage.clear();
+    dashboardData.summary = {};
     useSWRMock.mockReset();
     useSWRMock.mockImplementation((key) => ({
       data: key === "/api/workstation/widgets/workstation" ? dashboardData : undefined,
@@ -93,6 +94,27 @@ describe("WorkstationDashboard runtime polling", () => {
     expect(aggregateCall[2].isPaused()).toBe(true);
     expect(resourceCall[0]).toBeNull();
   });
+
+  it("shows the current activity streak instead of the yearly active-day count", () => {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    dashboardData.summary = {
+      tokenDashboard: {
+        daily: [
+          { date: localDateKey(yesterday), tokens: 10 },
+          { date: localDateKey(today), tokens: 20 },
+        ],
+      },
+      github: {},
+    };
+    render(<WorkstationDashboard />);
+
+    fireEvent.click(document.getElementById("workstation-tab-stats"));
+
+    expect(screen.getByText(/当前连续 2 天/)).toBeInTheDocument();
+    expect(screen.queryByText(/活跃 2 天/)).not.toBeInTheDocument();
+  });
 });
 
 function latestCallForKey(key) {
@@ -101,4 +123,11 @@ function latestCallForKey(key) {
 
 function latestResourceCall() {
   return [...useSWRMock.mock.calls].reverse().find(([, , options]) => options?.refreshInterval === 15_000);
+}
+
+function localDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }

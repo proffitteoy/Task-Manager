@@ -132,6 +132,69 @@ describe("workbench-core MVP", () => {
     expect(refreshed.json().externalData.stale).toBe(false);
   });
 
+  it("serves the latest successful Tokei snapshot without running the collector", async () => {
+    const settings = (await workbench.app.inject("/api/settings/workstation")).json();
+    const payload = {
+      connected: true,
+      fetchedAt: Date.now(),
+      source: "Tokei collector",
+      roots: [settings.activityStats.tokeiRepo],
+      requestedRoots: [settings.activityStats.tokeiRepo],
+      collector: join(settings.activityStats.tokeiRepo, "usage.30s.py"),
+      dashboard: {
+        ranges: { today: { tokens: 42 } },
+        daily: [{ date: new Date().toISOString().slice(0, 10), tokens: 42, cost: 0 }],
+        tools: []
+      }
+    };
+    workbench.database.sqlite
+      .prepare(
+        `INSERT INTO activity_snapshots
+          (id, source, date, payload_json, created_at)
+         VALUES (?, 'tokei', ?, ?, ?)`
+      )
+      .run("latest:tokei", new Date().toISOString().slice(0, 10), JSON.stringify(payload), new Date().toISOString());
+    const collector = vi.spyOn(ActivityStatsAdapter.prototype, "tokeiUsage");
+
+    const response = await workbench.app.inject("/api/tokei/usage");
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual(expect.objectContaining({ connected: true, stale: false, refreshing: false }));
+    expect(response.json().dashboard.ranges.today.tokens).toBe(42);
+    expect(collector).not.toHaveBeenCalled();
+  });
+
+  it("persists a successful background Tokei refresh for the next startup", async () => {
+    const settings = (await workbench.app.inject("/api/settings/workstation")).json();
+    vi.spyOn(ActivityWatchAdapter.prototype, "summary").mockResolvedValue({ connected: false });
+    vi.spyOn(ActivityStatsAdapter.prototype, "tokeiUsage").mockResolvedValue({
+      connected: true,
+      fetchedAt: 123,
+      source: "Tokei collector",
+      roots: [settings.activityStats.tokeiRepo],
+      requestedRoots: [settings.activityStats.tokeiRepo],
+      dashboard: { ranges: { today: { tokens: 7 } }, daily: [], tools: [] }
+    });
+    vi.spyOn(ActivityStatsAdapter.prototype, "githubContributions").mockResolvedValue({ connected: false });
+    vi.spyOn(MusicAdapter.prototype, "current").mockResolvedValue({
+      connected: false,
+      mood: "focus",
+      playing: false,
+      provider: "mock",
+      queue: [],
+      updatedAt: new Date().toISOString()
+    });
+
+    await workbench.app.inject("/api/widgets/workstation");
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const row = workbench.database.sqlite
+      .prepare("SELECT payload_json FROM activity_snapshots WHERE id = 'latest:tokei'")
+      .get() as { payload_json: string } | undefined;
+    expect(row).toBeTruthy();
+    expect(JSON.parse(row?.payload_json ?? "{}").dashboard.ranges.today.tokens).toBe(7);
+  });
+
   it("reuses the dashboard external snapshot until reset-cache invalidates it", async () => {
     const activityWatch = vi
       .spyOn(ActivityWatchAdapter.prototype, "summary")

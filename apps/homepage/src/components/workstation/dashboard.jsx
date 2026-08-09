@@ -806,7 +806,7 @@ function StatsPanel({ summary }) {
             <div className="workstation-year-aside">
               <span>{activeYear}</span>
               <strong>{activeDataset.format(heatmap.stats.total)}</strong>
-              <small>活跃 {heatmap.stats.activeDays} 天 · 峰值 {activeDataset.format(heatmap.stats.peak.value)}</small>
+              <small>当前连续 {heatmap.stats.currentStreak} 天 · 峰值 {activeDataset.format(heatmap.stats.peak.value)}</small>
             </div>
             <Heatmap cells={heatmap.cells} max={heatmap.max} months={heatmap.months} tone={activeDataset.id} unit={activeDataset.unit} format={activeDataset.format} />
           </div>
@@ -1033,7 +1033,6 @@ function buildYearHeatmap(days, mode, year) {
       months.push({ label: `${cursor.getMonth() + 1}月`, week });
     }
   }
-  const activeDays = days.filter((day) => String(day.date).startsWith(`${year}-`) && Number(day.value ?? 0) > 0).length;
   const peak = days
     .filter((day) => String(day.date).startsWith(`${year}-`))
     .reduce((best, day) => (Number(day.value ?? 0) > best.value ? { date: day.date, value: Number(day.value ?? 0) } : best), { date: "", value: 0 });
@@ -1043,10 +1042,22 @@ function buildYearHeatmap(days, mode, year) {
     months,
     stats: {
       total: days.filter((day) => String(day.date).startsWith(`${year}-`)).reduce((sum, day) => sum + Number(day.value ?? 0), 0),
-      activeDays,
+      currentStreak: currentActivityStreak(values),
       peak,
     },
   };
+}
+
+function currentActivityStreak(values) {
+  let streak = 0;
+  const today = new Date();
+  for (let offset = 0; offset < 366; offset += 1) {
+    const cursor = new Date(today);
+    cursor.setDate(today.getDate() - offset);
+    if (Number(values.get(localDateKey(cursor)) ?? 0) <= 0) break;
+    streak += 1;
+  }
+  return streak;
 }
 
 function weeklyValue(values, date, year) {
